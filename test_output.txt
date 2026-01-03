@@ -1,0 +1,26 @@
+--- Test Scenarios ---
+
+Testing Utrecht (City)...
+Result 1:
+  Title: Utrecht, Nederland
+  Subtitle: Utrecht, Nederland
+  FAILED: Title and Subtitle are identical
+Result 2:
+  Title: Utrecht, Nederland
+  Subtitle: Utrecht, Nederland
+  FAILED: Title and Subtitle are identical
+Result 3:
+  Title: Utrecht, Nederland
+  Subtitle: Utrecht, Nederland
+  FAILED: Title and Subtitle are identical
+
+Testing Amsterdam...
+Result 1:
+  Title: Amsterdam, Noord-Holland, Nederland
+  Subtitle: Amsterdam, Noord-Holland, Nederland
+  FAILED: Title and Subtitle are identical
+
+Testing Loenen aan de Vecht...
+Result 1:
+  Title: Loenen aan de Vecht, Utrecht, Nederland
+  Subtitle: Loenen aan de Vecht, Stichtse Vecht, Utrecht, Nederland
