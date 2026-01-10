@@ -1,44 +1,57 @@
 import '../global.css';
 import { Stack } from 'expo-router';
-import { useColorScheme, View, ActivityIndicator } from 'react-native';
+import { useColorScheme } from 'react-native';
 import { useColorScheme as useNativeWindColorScheme } from 'nativewind';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
-import { storageService } from '../lib/storage';
-import { initLanguage } from '../lib/i18n';
-import { refreshAllNotifications } from '../lib/notifications';
+import { useEffect } from 'react';
+import { useStore } from '../store/useStore';
+import { refreshAllNotifications, setupNotificationListeners } from '../lib/notifications';
+import { updatePrayerTimesCache } from '../lib/cache';
+import { Settings as LuxonSettings } from 'luxon';
 
 export default function RootLayout() {
   const systemColorScheme = useColorScheme();
   const { colorScheme: nwColorScheme, setColorScheme: setNwColorScheme } = useNativeWindColorScheme();
-  const [isReady, setIsReady] = useState(false);
+
+  // Access store directly
+  const theme = useStore((state) => state.theme);
+  const language = useStore((state) => state.language);
+
+  // Sync Language with Luxon
+  useEffect(() => {
+    LuxonSettings.defaultLocale = language;
+  }, [language]);
 
   useEffect(() => {
+    let notificationSubscription: { remove: () => void } | undefined;
+
     async function init() {
-      await storageService.initialize();
-      initLanguage(); // Sync language from storage
-      refreshAllNotifications(); // Refresh notifications in background
-
-      // Get user's theme preference and sync with NativeWind
-      const savedTheme = storageService.getTheme();
-      if (savedTheme === 'system') {
-        setNwColorScheme(systemColorScheme || 'light');
-      } else {
-        setNwColorScheme(savedTheme as 'light' | 'dark');
-      }
-
-      setIsReady(true);
+      // Refresh notifications in background on app start
+      refreshAllNotifications();
+      // Update cache
+      updatePrayerTimesCache();
+      // Setup listeners
+      notificationSubscription = setupNotificationListeners();
     }
     init();
-  }, [systemColorScheme, setNwColorScheme]);
 
-  if (!isReady) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#3b82f6" />
-      </View>
-    );
-  }
+    return () => {
+      notificationSubscription && notificationSubscription.remove();
+    };
+  }, []);
+
+  // Sync Theme
+  useEffect(() => {
+    if (theme === 'system') {
+      setNwColorScheme(systemColorScheme || 'light');
+    } else {
+      setNwColorScheme(theme);
+    }
+  }, [theme, systemColorScheme, setNwColorScheme]);
+
+  // MMKV is synchronous, so we don't strictly need a loading state for storage.
+  // Unless we want to show a splash screen for other reasons.
+  // For now, render immediately.
 
   return (
     <>
@@ -76,4 +89,3 @@ export default function RootLayout() {
     </>
   );
 }
-

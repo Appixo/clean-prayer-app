@@ -1,4 +1,4 @@
-import { storageService } from './storage';
+import { useStore } from '../store/useStore';
 import { Settings } from 'luxon';
 
 export type Language = 'en' | 'tr';
@@ -414,55 +414,27 @@ const translations: Record<Language, Translations> = {
   },
 };
 
-let currentLanguage: Language = 'en';
-
 export function setLanguage(lang: Language): void {
-  currentLanguage = lang;
-  storageService.setLanguage(lang);
+  useStore.getState().setLanguage(lang);
   // Sync luxon locale immediately
   Settings.defaultLocale = lang;
 }
 
 export function getLanguage(): Language {
-  const stored = storageService.getLanguage();
+  const stored = useStore.getState().language;
   return (stored as Language) || 'en';
 }
 
-// Initialize language from storage (synchronously if possible, or default)
-// Since storageService.initialize() loads everything into memory, 
-// a subsequent call to getLanguage() in the component will get the correct value.
-// However, at module load time, the cache might be empty.
-// But since we delay rendering in _layout until initialize() is done, this is fine.
-currentLanguage = 'en'; // Default
-// We will update currentLanguage when getLanguage is called or via a side effect, 
-// but t() uses module-level variable. 
-// We should update currentLanguage inside the component or specific re-init.
-// Actually, `t` function should call `getLanguage()` every time? No, expensive.
-// Better: `getLanguage` uses storageService memory cache.
-// `t` should use `getLanguage()`?
-// Let's make `t` dynamic or keep currentLanguage in sync.
-//
-// Refactor:
-// We rely on `storageService.initialize()` happening BEFORE the app renders content.
-// Inside `_layout`, we await initialize(). After that, `storageService.getLanguage()` will return the stored value.
-// We must ensure `currentLanguage` variable is updated then.
-//
-// Let's change `t` to use `currentLanguage` but we need to update `currentLanguage` from storage.
-// We can expose an `initLanguage` function.
-
-export function initLanguage() {
-  const stored = storageService.getLanguage();
-  if (stored) {
-    currentLanguage = stored as Language;
-  }
-  // Sync luxon locale
-  Settings.defaultLocale = currentLanguage;
+// Initial sync if needed (though store handles defaults)
+const currentLang = useStore.getState().language;
+if (currentLang) {
+  Settings.defaultLocale = currentLang;
 }
 
 export function t(key: keyof Translations): string {
-  return translations[currentLanguage][key] || translations.en[key] || key;
+  const lang = useStore.getState().language as Language;
+  return translations[lang][key] || translations.en[key] || key;
 }
 
 // Export translation object for direct access if needed
 export { translations };
-

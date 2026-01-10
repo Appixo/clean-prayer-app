@@ -32,7 +32,12 @@
       },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "POST_NOTIFICATIONS",
+        "SCHEDULE_EXACT_ALARM",
+        "WAKE_LOCK"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
@@ -44,6 +49,10 @@
       "eas": {
         "projectId": "b1cba9c7-0da7-48c8-98ba-7dc4968a34f2"
       }
-    }
+    },
+    "plugins": [
+      "expo-build-properties",
+      "./plugins/withAdhanAudio"
+    ]
   }
 }

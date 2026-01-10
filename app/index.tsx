@@ -18,20 +18,27 @@ import { HijriDate } from '../components/HijriDate';
 // import { QiblaIndicator } from '../components/QiblaIndicator';
 import { calculatePrayerTimes, formatPrayerTime } from '../lib/prayer';
 import { getCurrentLocation } from '../lib/location';
-import { storageService } from '../lib/storage';
-import { t, getLanguage, type Language } from '../lib/i18n';
+import { t } from '../lib/i18n';
+import { useStore } from '../store/useStore';
 
-import type { PrayerTimes, PrayerName, PrayerTimeData, LocationData } from '../types';
+import type { PrayerTimes, PrayerTimeData } from '../types';
 
 export default function HomeScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+
+  // Zustand Store
+  const {
+    location, setLocation, isManualLocation,
+    calculationMethod, asrMethod, highLatitudeRule,
+    timeFormat,
+    language
+  } = useStore();
+
   const [prayerTimes, setPrayerTimes] = useState<PrayerTimes | null>(null);
-  const [location, setLocation] = useState<LocationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [lastCalculatedDate, setLastCalculatedDate] = useState<Date | null>(null);
-  const [language, setLanguageState] = useState<Language>(getLanguage());
 
   // Update header title based on language
   useEffect(() => {
@@ -49,35 +56,17 @@ export default function HomeScreen() {
     return () => {
       subscription.remove();
     };
-  }, [selectedDate]);
+  }, [selectedDate, location]);
+
   const { colorScheme, setColorScheme } = useNativeWindColorScheme();
 
-  // Re-check language and theme when screen comes into focus
-  // Also reload prayer times when returning from settings
+  // Re-check logic when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      // Sync language
-      const currentLang = getLanguage();
-      if (currentLang !== language) {
-        setLanguageState(currentLang);
-      }
-
-      // Sync theme
-      const savedTheme = storageService.getTheme();
-      if (savedTheme !== 'system') {
-        if (colorScheme !== savedTheme) {
-          setColorScheme(savedTheme as 'light' | 'dark');
-        }
-      } else {
-        // Handled by RootLayout Effect for system changes, 
-        // but let's ensure it's synced here too
-      }
-
-      // Reload prayer times when screen comes into focus
-      // This ensures settings changes (location, method, etc.) are reflected immediately
+      // Typically theme and language are synced in RootLayout now, so we don't need manual sync here.
+      // However, we DO want to reload prayer times if parameters changed.
       loadPrayerTimes(selectedDate);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [language, colorScheme, selectedDate])
+    }, [language, colorScheme, selectedDate, location, calculationMethod, asrMethod, highLatitudeRule])
   );
 
   const loadPrayerTimes = async (targetDate: Date = selectedDate) => {
@@ -86,27 +75,37 @@ export default function HomeScreen() {
         setLoading(true);
       }
 
-      // Get location
-      const currentLocation = await getCurrentLocation();
-      if (!currentLocation) {
-        console.error('Could not get location');
-        setLocation(null);
+      let loc = location;
+
+      // If no location in store, or not manual, try to fetch GPS
+      // (If isManualLocation is true, we assume 'location' in store is valid from settings)
+      if (!loc || !isManualLocation) {
+        const gpsLocation = await getCurrentLocation();
+        if (gpsLocation) {
+          // Update store with GPS location if strictly needed or just use it transiently?
+          // Better to update store so it persists as cache?
+          // Yes, let's update store if we got new GPS
+          setLocation(gpsLocation.coordinates, undefined, undefined, undefined, false);
+          loc = gpsLocation.coordinates;
+          // We only have coordinates, but let's assume valid
+        } else {
+          // GPS failed, do we have a cached location?
+          if (!loc) {
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
+      if (!loc) {
         setLoading(false);
         return;
       }
 
-
-      setLocation(currentLocation);
-
-      // Get settings from storage
-      const method = storageService.getCalculationMethod();
-      const asrMethod = storageService.getAsrMethod();
-      const highLatitudeRule = storageService.getHighLatitudeRule();
-
       // Calculate prayer times
       const calculatedTimes = calculatePrayerTimes(
-        currentLocation.coordinates,
-        method,
+        loc,
+        calculationMethod,
         asrMethod,
         highLatitudeRule,
         targetDate
@@ -160,14 +159,11 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!prayerTimes) return;
 
-    // Only run countdown if showing today or if next prayer is explicitly in the future
     const interval = setInterval(() => {
       if (prayerTimes.nextPrayer) {
         const now = new Date();
-        // Use explicitly calculated nextPrayerTime, fallback to property lookup
         const nextPrayerTime = prayerTimes.nextPrayerTime || (prayerTimes.nextPrayer ? (prayerTimes[prayerTimes.nextPrayer] as Date) : null);
 
-        // If we can't find a next prayer time, stop the countdown (don't loop reload)
         if (!nextPrayerTime) return;
 
         let timeUntilNext = 0;
@@ -184,14 +180,12 @@ export default function HomeScreen() {
             };
           });
         } else {
-          // Time has passed, check if we should recalculate (only if it's actually today)
           const today = new Date();
           const isShowingToday = selectedDate.getDate() === today.getDate() &&
             selectedDate.getMonth() === today.getMonth() &&
             selectedDate.getFullYear() === today.getFullYear();
 
           if (isShowingToday) {
-            console.log('Time passed for next prayer, reloading...');
             loadPrayerTimes(today);
           }
         }
@@ -201,7 +195,8 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, [prayerTimes?.nextPrayer, selectedDate]);
 
-  if (loading) {
+
+  if (loading && !prayerTimes) {
     return (
       <View className="flex-1 bg-white dark:bg-gray-900 items-center justify-center">
         <Text className="text-gray-600 dark:text-gray-400">
@@ -211,7 +206,11 @@ export default function HomeScreen() {
     );
   }
 
-  if (!location || !prayerTimes) {
+  // Determine display location name
+  const displayCity = useStore.getState().city;
+  const displayLocationName = displayCity || (isManualLocation ? t('manualLocation') : t('currentLocation'));
+
+  if (!location) {
     return (
       <View className="flex-1 bg-white dark:bg-gray-900 px-6 items-center justify-center">
         <View className="bg-blue-500 p-6 rounded-3xl mb-8">
@@ -235,8 +234,8 @@ export default function HomeScreen() {
     );
   }
 
+  if (!prayerTimes) return null;
 
-  const timeFormat = storageService.getTimeFormat();
   const format12h = timeFormat === '12h';
 
   // Prepare prayer data for display
@@ -303,7 +302,7 @@ export default function HomeScreen() {
               {t('location')}
             </Text>
             <Text className="text-gray-900 dark:text-gray-100 text-base font-semibold">
-              {location.name || t('unknownLocation')}
+              {displayLocationName}
             </Text>
           </View>
           <TouchableOpacity
@@ -317,6 +316,16 @@ export default function HomeScreen() {
         {/* Countdown Timer */}
         <CountdownTimer prayerTimes={prayerTimes} date={selectedDate} />
 
+        {/* Quick Actions */}
+        <View className="flex-row gap-3 mb-4">
+          <TouchableOpacity
+            onPress={() => router.push('/qibla')}
+            className="flex-1 bg-gray-100 dark:bg-gray-800 p-4 rounded-xl flex-row items-center justify-center border border-gray-200 dark:border-gray-700 active:bg-gray-200 dark:active:bg-gray-700"
+          >
+            <Text className="text-2xl mr-2">🧭</Text>
+            <Text className="text-gray-900 dark:text-gray-100 font-bold">{t('qiblaDirection')}</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Hijri Date */}
         <HijriDate
@@ -347,4 +356,3 @@ export default function HomeScreen() {
     </View>
   );
 }
-
