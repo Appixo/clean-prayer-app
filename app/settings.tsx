@@ -10,6 +10,7 @@ import {
   FlatList,
   useColorScheme as useNativeColorScheme,
   Switch,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useNavigation } from 'expo-router';
 import { useStore } from '../store/useStore';
@@ -28,13 +29,18 @@ import type {
   TimeFormat,
   Theme,
 } from '../types';
-import { ChevronDown, ChevronUp, X, Search, MapPin, Volume2, Play, Bell } from 'lucide-react-native';
+import { ChevronDown, ChevronUp, X, Search, MapPin, Volume2, Play, Bell, Square } from 'lucide-react-native';
 import { simulatePrayerNotification, refreshAllNotifications } from '../lib/notifications';
 import { Audio } from 'expo-av';
+import { logger } from '../lib/logger';
+import { searchCities, getCityName, getProvinceAndCountry } from '../lib/location';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const navigation = useNavigation();
   const systemColorScheme = useNativeColorScheme();
+  const insets = useSafeAreaInsets();
 
   // Zustand Store
   const {
@@ -46,6 +52,8 @@ export default function SettingsScreen() {
     language, setLanguage,
     playAdhan, setPlayAdhan,
     setLocation,
+    addSavedLocation,
+    selectLocation,
     location: currentLocation,
     isManualLocation,
     city: storeCity,
@@ -57,6 +65,29 @@ export default function SettingsScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const soundRef = React.useRef<Audio.Sound | null>(null);
+
+  // Debounced search logic
+  useEffect(() => {
+    if (!citySearch.trim() || citySearch.length < 2) {
+      setSearchResults([]);
+      setSearchError(null);
+      return;
+    }
+
+    // Don't search if it's the current store location being displayed
+    if (isManualLocation && storeCity && citySearch.startsWith(storeCity)) {
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(() => {
+      searchCity(citySearch);
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [citySearch]);
 
   // UI state for collapsible sections
   const [calcMethodExpanded, setCalcMethodExpanded] = useState(false);
@@ -74,9 +105,6 @@ export default function SettingsScreen() {
       } else {
         setCitySearch(`${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)}`);
       }
-    } else if (storeCity) {
-      // Just to prepopulate but wait, if it's auto, we might not want to prepopulate manual search
-      // setCitySearch(storeCity);
     }
   }, [isManualLocation, currentLocation, storeCity, storeCountry]);
 
@@ -97,54 +125,17 @@ export default function SettingsScreen() {
     refreshAllNotifications();
   };
 
-  const searchCity = async () => {
-    if (!citySearch.trim()) {
-      Alert.alert(t('error'), 'Please enter a city name');
-      return;
-    }
-
+  const searchCity = async (query: string) => {
     setIsSearching(true);
     setSearchResults([]);
+    setSearchError(null);
     try {
-      const langCode = language === 'tr' ? 'tr' : 'en';
-
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(citySearch)}&format=json&limit=20&addressdetails=1&accept-language=${langCode}`,
-        {
-          headers: {
-            'User-Agent': 'CleanPrayerApp/1.0',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (data && Array.isArray(data)) {
-        // Sort results similar to before
-        const sortedData = [...data].sort((a, b) => {
-          const typeA = (a.addresstype || a.type || "").toLowerCase();
-          const typeB = (b.addresstype || b.type || "").toLowerCase();
-
-          const isCityA = typeA === 'city' || typeA === 'town' || typeA === 'village' || a.class === 'place';
-          const isCityB = typeB === 'city' || typeB === 'town' || typeB === 'village' || b.class === 'place';
-
-          if (isCityA && !isCityB) return -1;
-          if (!isCityA && isCityB) return 1;
-          return 0;
-        });
-        setSearchResults(sortedData);
-      } else {
-        setSearchResults([]);
-      }
-
+      const data = await searchCities(query, language || 'en');
+      setSearchResults(data);
       setShowSearchModal(true);
     } catch (error) {
-      console.error('Search error:', error);
-      Alert.alert(t('error'), t('searchError') || 'Could not search for city');
+      logger.error('Search error', error);
+      setSearchError("Could not connect. Please check internet.");
     } finally {
       setIsSearching(false);
     }
@@ -153,43 +144,36 @@ export default function SettingsScreen() {
   const selectSearchResult = (result: any) => {
     const lat = parseFloat(result.lat);
     const lon = parseFloat(result.lon);
-    const locationName = formatLocationName(result);
 
-    // Save to store
     // We try to parse city/country from address if possible
     let city = result.address?.city || result.address?.town || result.address?.village || result.display_name.split(',')[0];
     let country = result.address?.country;
 
-    setLocation({ latitude: lat, longitude: lon }, city, country, undefined, true);
+    // Use current architecture to add and select
+    const id = Math.random().toString(36).substring(2, 9);
+    addSavedLocation({
+      id,
+      city,
+      country: country || '',
+      latitude: lat,
+      longitude: lon,
+    });
+    selectLocation(id);
 
-    setCitySearch(locationName);
+    setCitySearch(city + (country ? `, ${country}` : ''));
     setSearchResult({ lat, lon, display_name: result.display_name });
     setShowSearchModal(false);
     setSearchResults([]);
-    Alert.alert(t('success'), `${t('locationSetTo')}: ${locationName}`);
+    Alert.alert(t('success'), `${t('locationSetTo')}: ${city}`);
+
+    // Navigate back to home
+    router.replace('/');
   };
 
-  const formatLocationName = (result: any): string => {
-    if (!result) return '';
-    if (typeof result === 'string') return result;
-
-    const { address, display_name } = result;
-    if (!address) return display_name.split(',').slice(0, 2).join(',');
-
-    const city = address.city || address.town || address.village || address.suburb;
-    const country = address.country;
-
-    if (city && country) return `${city}, ${country}`;
-    return display_name.split(',').slice(0, 2).join(',');
-  };
 
   const clearManualLocation = () => {
-    // If we clear manual location, we should probably trigger a re-fetch of GPS location? 
-    // Or just set isManual=false and let Home screen handle it?
-    // Let's set isManual=false. Home screen should detect this and re-fetch GPS.
     if (!currentLocation) {
-      // Fallback or just unset
-      useStore.getState().setLocation({ latitude: 0, longitude: 0 }, undefined, undefined, undefined, false); // Hacky reset
+      useStore.getState().setLocation({ latitude: 0, longitude: 0 }, undefined, undefined, undefined, false);
     } else {
       useStore.getState().setLocation(currentLocation, storeCity || undefined, storeCountry || undefined, undefined, false);
     }
@@ -204,15 +188,49 @@ export default function SettingsScreen() {
 
   const playPreview = async () => {
     try {
+      if (isPreviewPlaying && soundRef.current) {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+        setIsPreviewPlaying(false);
+        return;
+      }
+
+      // Stop existing if any (shouldn't happen with logic above but for safety)
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync();
+      }
+
       const { sound } = await Audio.Sound.createAsync(
-        require('../assets/sounds/adhan.mp3')
+        require('../assets/audio/adhan.mp3')
       );
+      soundRef.current = sound;
+
+      setIsPreviewPlaying(true); // Set state immediately
+
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setIsPreviewPlaying(false);
+          soundRef.current = null;
+        }
+      });
+
       await sound.playAsync();
     } catch (error) {
-      console.error('Preview error:', error);
+      logger.error('Preview error', error);
       Alert.alert(t('error'), 'Could not play audio preview');
+      setIsPreviewPlaying(false);
     }
   };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.unloadAsync();
+      }
+    };
+  }, []);
 
   const handleSimulate = async () => {
     await simulatePrayerNotification();
@@ -274,16 +292,17 @@ export default function SettingsScreen() {
             )}
           </View>
 
-          <TouchableOpacity
-            onPress={searchCity}
-            disabled={isSearching}
-            className={`w-full ${isSearching ? 'bg-blue-400' : 'bg-blue-500'} dark:bg-blue-600 p-4 rounded-xl flex-row justify-center items-center shadow-md mb-3`}
-          >
-            <Search size={22} color="white" />
+          <View className={`w-full ${isSearching ? 'bg-blue-400' : 'bg-blue-500'} dark:bg-blue-600 p-4 rounded-xl flex-row justify-center items-center shadow-md mb-3`}>
+            {isSearching ? <ActivityIndicator size="small" color="white" /> : <Search size={22} color="white" />}
             <Text className="text-white text-center font-bold text-lg ml-2">
               {isSearching ? t('searching') : t('searchAndSave')}
             </Text>
-          </TouchableOpacity>
+          </View>
+          {searchError && (
+            <Text className="text-red-500 text-sm mb-3 px-1">
+              {searchError}
+            </Text>
+          )}
 
           <TouchableOpacity
             onPress={clearManualLocation}
@@ -319,7 +338,20 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
               </View>
 
-              {searchResults.length > 0 ? (
+              {isSearching ? (
+                <View className="p-8 items-center">
+                  <ActivityIndicator size="large" color="#3b82f6" />
+                  <Text className="text-gray-500 dark:text-gray-400 mt-4">
+                    {t('searching')}
+                  </Text>
+                </View>
+              ) : searchError ? (
+                <View className="p-8 items-center">
+                  <Text className="text-red-500 text-center">
+                    {searchError === "Network error" ? t('networkError') : searchError}
+                  </Text>
+                </View>
+              ) : searchResults.length > 0 ? (
                 <FlatList
                   data={searchResults}
                   keyExtractor={(item) => String(item.place_id)}
@@ -333,19 +365,23 @@ export default function SettingsScreen() {
                           <MapPin size={20} color="#3b82f6" />
                         </View>
                         <View className="flex-1">
-                          <Text className="text-gray-900 dark:text-gray-100 text-base font-semibold">
-                            {formatLocationName(item)}
+                          <Text className="text-gray-900 dark:text-gray-100 text-base font-bold">
+                            {getCityName(item)}
+                          </Text>
+                          <Text className="text-gray-500 dark:text-gray-400 text-xs mt-0.5" numberOfLines={1}>
+                            {getProvinceAndCountry(item)}
                           </Text>
                         </View>
                       </View>
                     </TouchableOpacity>
                   )}
                   className="max-h-[500px]"
+                  contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
                 />
               ) : (
                 <View className="p-8 items-center">
                   <Text className="text-gray-500 dark:text-gray-400 text-center">
-                    {t('noResultsFound')}
+                    {citySearch.length >= 2 ? t('noResultsFound') : t('searchDescription')}
                   </Text>
                 </View>
               )}
@@ -378,11 +414,15 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             onPress={playPreview}
-            className="mt-3 flex-row items-center justify-center bg-blue-100 dark:bg-blue-900/30 p-3 rounded-xl"
+            className={`mt-3 flex-row items-center justify-center ${isPreviewPlaying ? 'bg-red-100 dark:bg-red-900/30' : 'bg-blue-100 dark:bg-blue-900/30'} p-3 rounded-xl`}
           >
-            <Play size={18} color="#3b82f6" fill="#3b82f6" />
-            <Text className="text-blue-600 dark:text-blue-400 font-bold ml-2">
-              {t('playPreview')}
+            {isPreviewPlaying ? (
+              <Square size={18} color="#ef4444" fill="#ef4444" />
+            ) : (
+              <Play size={18} color="#3b82f6" fill="#3b82f6" />
+            )}
+            <Text className={`${isPreviewPlaying ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'} font-bold ml-2`}>
+              {isPreviewPlaying ? t('stop') : t('playPreview')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -458,7 +498,6 @@ export default function SettingsScreen() {
         </View>
 
         {/* High Latitude Rule */}
-        {/* Simplified for brevity while refactoring, logic remains same */}
         <View className="mb-6">
           <TouchableOpacity
             onPress={() => setHighLatExpanded(!highLatExpanded)}
@@ -563,20 +602,22 @@ export default function SettingsScreen() {
         </View>
 
         {/* QA Section */}
-        <View className="mt-4 pt-8 border-t border-gray-200 dark:border-gray-800 mb-10">
-          <TouchableOpacity
-            onPress={handleSimulate}
-            className="bg-purple-500 dark:bg-purple-600 p-4 rounded-xl flex-row justify-center items-center shadow-md"
-          >
-            <Bell size={20} color="white" className="mr-2" />
-            <Text className="text-white text-center font-bold text-lg ml-2">
-              {t('simulatePrayer')}
+        {__DEV__ && (
+          <View className="mt-4 pt-8 border-t border-gray-200 dark:border-gray-800 mb-10">
+            <TouchableOpacity
+              onPress={handleSimulate}
+              className="bg-purple-500 dark:bg-purple-600 p-4 rounded-xl flex-row justify-center items-center shadow-md"
+            >
+              <Bell size={20} color="white" className="mr-2" />
+              <Text className="text-white text-center font-bold text-lg ml-2">
+                {t('simulatePrayer')}
+              </Text>
+            </TouchableOpacity>
+            <Text className="text-gray-500 dark:text-gray-400 text-[10px] text-center mt-2 italic">
+              Simulates immediate notification & adhan sound (Dev Only)
             </Text>
-          </TouchableOpacity>
-          <Text className="text-gray-500 dark:text-gray-400 text-[10px] text-center mt-2 italic">
-            Simulates immediate notification & adhan sound
-          </Text>
-        </View>
+          </View>
+        )}
 
       </View>
     </ScrollView>

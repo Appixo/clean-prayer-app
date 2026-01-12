@@ -1,5 +1,4 @@
 import { Platform } from 'react-native';
-import { MMKV } from 'react-native-mmkv';
 import type {
   CalculationMethod,
   AsrMethod,
@@ -9,8 +8,19 @@ import type {
   Coordinates,
 } from '../types';
 
-// Initialize MMKV
-export const storage = new MMKV();
+const memoryCache = new Map<string, string>();
+let storage: any = null;
+
+if (Platform.OS !== 'web') {
+  try {
+    const { MMKV } = require('react-native-mmkv');
+    storage = new MMKV();
+  } catch (e) {
+    // Falls back to memoryCache below
+  }
+}
+
+export { storage };
 
 // Storage keys
 export const KEYS = {
@@ -38,25 +48,45 @@ const DEFAULTS = {
 
 // Helper for Web compatibility (localStorage) vs Native (MMKV)
 const getIt = (key: string): string | undefined => {
-  if (Platform.OS === 'web') return localStorage.getItem(key) || undefined;
-  return storage.getString(key);
+  if (Platform.OS === 'web') {
+    try {
+      return typeof localStorage !== 'undefined' ? localStorage.getItem(key) || undefined : undefined;
+    } catch (e) {
+      return undefined;
+    }
+  }
+  return storage?.getString(key) || memoryCache.get(key);
 };
 
 const setIt = (key: string, value: string) => {
-  if (Platform.OS === 'web') localStorage.setItem(key, value);
-  else storage.set(key, value);
+  if (Platform.OS === 'web') {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(key, value);
+      }
+    } catch (e) { }
+  } else {
+    if (storage) {
+      storage.set(key, value);
+    }
+    memoryCache.set(key, value);
+  }
 };
 
 const delIt = (key: string) => {
-  if (Platform.OS === 'web') localStorage.removeItem(key);
-  else storage.delete(key);
+  if (Platform.OS === 'web') {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(key);
+      }
+    } catch (e) { }
+  } else {
+    storage?.delete(key);
+    memoryCache.delete(key);
+  }
 };
 
 export const storageService = {
-  /**
-   * No-op for MMKV/LocalStorage as they are synchronous.
-   * Kept for backward compatibility.
-   */
   async initialize(): Promise<void> {
     return Promise.resolve();
   },
@@ -171,7 +201,7 @@ export const storageService = {
 
   getPlayAdhan(): boolean {
     const val = getIt(KEYS.PLAY_ADHAN);
-    return val === 'true'; // Default to false
+    return val === 'true';
   },
 
   setPlayAdhan(enabled: boolean): void {
@@ -182,7 +212,7 @@ export const storageService = {
     if (Platform.OS === 'web') {
       localStorage.clear();
     } else {
-      storage.clearAll();
+      storage?.clearAll();
     }
   },
 };

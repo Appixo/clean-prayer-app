@@ -1,20 +1,55 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, StyleSheet, useColorScheme } from 'react-native';
 import type { PrayerTimes } from '../types';
 import { t } from '../lib/i18n';
 
 interface CountdownTimerProps {
   prayerTimes: PrayerTimes;
   date?: Date; // Optional date to check for Friday
+  overrideTimeRemaining?: number | null;
 }
 
-export function CountdownTimer({ prayerTimes, date = new Date() }: CountdownTimerProps) {
-  const timeRemaining = prayerTimes.timeUntilNext;
+export function CountdownTimer({ prayerTimes, date = new Date(), overrideTimeRemaining }: CountdownTimerProps) {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
+  const timeRemaining = overrideTimeRemaining !== undefined ? overrideTimeRemaining : prayerTimes.timeUntilNext;
   const isFriday = date.getDay() === 5;
+
+  // Bug 2 Fix: Safely activate/deactivate keep awake in an effect
+  React.useEffect(() => {
+    let isActive = true;
+
+    async function toggleKeepAwake() {
+      try {
+        const { activateKeepAwakeAsync, deactivateKeepAwake } = await import('expo-keep-awake');
+        if (isActive) {
+          await activateKeepAwakeAsync();
+        } else {
+          await deactivateKeepAwake();
+        }
+      } catch (e) {
+        // Silence keep awake errors
+      }
+    }
+
+    toggleKeepAwake();
+
+    return () => {
+      isActive = false;
+      toggleKeepAwake();
+    };
+  }, []);
 
   if (!prayerTimes.nextPrayer || timeRemaining === null) {
     return (
-      <View className="bg-gray-100 dark:bg-gray-800 p-3 rounded-lg mb-3">
+      <View
+        style={[
+          styles.container,
+          { backgroundColor: isDark ? '#1f2937' : '#f3f4f6' }
+        ]}
+        className="p-3 rounded-lg mb-3"
+      >
         <Text className="text-gray-600 dark:text-gray-400 text-center text-xs">
           {t('calculatingNextPrayer')}
         </Text>
@@ -35,7 +70,13 @@ export function CountdownTimer({ prayerTimes, date = new Date() }: CountdownTime
   }
 
   return (
-    <View className="bg-blue-500 dark:bg-blue-600 p-4 rounded-lg mb-3">
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: isDark ? '#2563eb' : '#3b82f6' }
+      ]}
+      className="p-4 rounded-lg mb-3"
+    >
       <Text className="text-white text-center text-xs mb-1">
         {t('timeUntil')} {nextPrayerName}
       </Text>
@@ -64,4 +105,10 @@ export function CountdownTimer({ prayerTimes, date = new Date() }: CountdownTime
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    // Basic structure handled by className
+  }
+});
 

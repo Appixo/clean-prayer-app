@@ -98,6 +98,11 @@ export interface Translations {
   invalidInput: string;
   invalidLatitude: string;
   invalidLongitude: string;
+  later: string;
+  batteryOptimization: string;
+  batteryOptimizationWarning: string;
+  allowAlarms: string;
+  allowAlarmsWarning: string;
   latitudeRange: string;
   longitudeRange: string;
   success: string;
@@ -153,6 +158,41 @@ export interface Translations {
   welcomeTitle: string;
   welcomeSubtitle: string;
   setupLocation: string;
+  done: string;
+  addNewLocation: string;
+  updateCurrentLocation: string;
+  loadingQibla: string;
+  pointingToKaaba: string;
+  rotateToAlign: string;
+  fromNorth: string;
+  qiblaInstructions: string;
+  locationError: string;
+  gpsFailedMessage: string;
+  tryAgain: string;
+  useManualSearch: string;
+  myLocation: string;
+  deleteLocation: string;
+  confirmDelete: string;
+  cannotDelete: string;
+  lastLocationWarning: string;
+  longPressToDelete: string;
+  welcome: string;
+  startSetup: string;
+  selectLanguage: string;
+  selectCalculationMethod: string;
+  notifications: string;
+  adhanSound: string;
+  setupComplete: string;
+  startUsing: string;
+  getStarted: string;
+  gpsOnce: string;
+  searchCity: string;
+  myLocations: string;
+  back: string;
+  continue: string;
+  finish: string;
+  stop: string;
+  silence: string;
 }
 
 const translations: Record<Language, Translations> = {
@@ -233,7 +273,12 @@ const translations: Record<Language, Translations> = {
     alignPhone: 'Align arrow with the Qibla',
     invalidInput: 'Invalid Input',
     invalidLatitude: 'Invalid Latitude',
-    invalidLongitude: 'Invalid Longitude',
+    invalidLongitude: 'Invalid Longitude (-180 to 180)',
+    later: 'Later',
+    batteryOptimization: 'Battery Settings',
+    batteryOptimizationWarning: 'For the Adhan to play accurately when the app is closed, please set the battery usage to "Unrestricted" in the next screen.',
+    allowAlarms: 'Allow Alarms',
+    allowAlarmsWarning: 'This app needs "Exact Alarm" permission to play the Adhan exactly on time. Please enable it in the next screen.',
     latitudeRange: 'Latitude must be between -90 and 90.',
     longitudeRange: 'Longitude must be between -180 and 180.',
     success: 'Success',
@@ -280,9 +325,44 @@ const translations: Record<Language, Translations> = {
     playPreview: 'Play Preview',
     simulatePrayer: 'Simulate Prayer',
     simulationTriggered: 'Simulation Triggered',
-    welcomeTitle: 'Welcome to Namaz Vakitleri',
-    welcomeSubtitle: 'Please set your location to calculate accurate prayer times.',
+    welcomeTitle: 'Namaz Vakitleri',
+    welcomeSubtitle: 'Thank you for installing! Let\'s get you set up in a few seconds.',
     setupLocation: 'Setup Location',
+    done: 'Done',
+    addNewLocation: 'Add New Location',
+    updateCurrentLocation: 'Update Current Location',
+    loadingQibla: 'Loading Qibla...',
+    pointingToKaaba: '🕋 Pointing to Kaaba',
+    rotateToAlign: 'Rotate to align',
+    fromNorth: 'from north',
+    qiblaInstructions: 'Hold your phone flat and rotate until the needle points to the Kaaba',
+    locationError: 'Location Error',
+    gpsFailedMessage: 'Could not get your location. Please try:\n\n• Moving near a window\n• Ensuring GPS is enabled in settings\n• Using manual search instead',
+    tryAgain: 'Try Again',
+    useManualSearch: 'Search Manually',
+    myLocation: 'My Location',
+    deleteLocation: 'Delete Location',
+    confirmDelete: 'Are you sure you want to delete',
+    cannotDelete: 'Cannot Delete',
+    lastLocationWarning: 'At least one location must be saved',
+    longPressToDelete: 'Long press to delete',
+    welcome: 'Welcome',
+    startSetup: 'Start Setup',
+    selectLanguage: 'Select Language',
+    selectCalculationMethod: 'Calculation Method',
+    notifications: 'Notifications',
+    adhanSound: 'Adhan Sound',
+    setupComplete: 'Setup Complete',
+    startUsing: 'Start Using App',
+    gpsOnce: 'Use My Location',
+    searchCity: 'Search City',
+    myLocations: 'My Locations',
+    back: 'Back',
+    continue: 'Continue',
+    finish: 'Finish',
+    stop: 'Stop',
+    silence: 'Silence',
+    getStarted: 'Get Started',
   },
   tr: {
     location: 'Konum',
@@ -298,7 +378,7 @@ const translations: Record<Language, Translations> = {
     settings: 'Ayarlar',
     about: 'Hakkında',
     error: 'Hata',
-    fajr: 'İmsak / Sabah',
+    fajr: 'Sabah',
     sunrise: 'Güneş',
     dhuhr: 'Öğle',
     asr: 'İkindi',
@@ -315,7 +395,7 @@ const translations: Record<Language, Translations> = {
     standard: 'Standart',
     hanafi: 'Hanefi',
     highLatitudeRule: 'Yüksek Enlem Kuralı',
-    manualLocationOverride: 'Manuel Konum Geçersiz Kılma',
+    manualLocationOverride: 'Konum Yönetimi',
     enterCoordinates: 'Cihaz konumunu geçersiz kılmak için koordinatları girin',
     latitude: 'Enlem (-90 ile 90 arası)',
     longitude: 'Boylam (-180 ile 180 arası)',
@@ -361,7 +441,12 @@ const translations: Record<Language, Translations> = {
     alignPhone: 'Oku Kıble ile hizalayın',
     invalidInput: 'Geçersiz Girdi',
     invalidLatitude: 'Geçersiz Enlem',
-    invalidLongitude: 'Geçersiz Boylam',
+    invalidLongitude: 'Geçersiz Boylam (-180 ile 180 arası)',
+    later: 'Sonra',
+    batteryOptimization: 'Pil Ayarları',
+    batteryOptimizationWarning: 'Ezanın uygulama kapalıyken vaktinde okunabilmesi için lütfen bir sonraki ekranda pil kullanımını "Kısıtlanmamış" olarak ayarlayın.',
+    allowAlarms: 'Alarmlara İzin Ver',
+    allowAlarmsWarning: 'Ezanın tam vaktinde okunabilmesi için bu uygulamanın "Tam Alarmlar" iznine ihtiyacı var. Lütfen bir sonraki ekranda bu izni etkinleştirin.',
     latitudeRange: 'Enlem -90 ile 90 arasında olmalıdır.',
     longitudeRange: 'Boylam -180 ile 180 arasında olmalıdır.',
     success: 'Başarılı',
@@ -408,9 +493,44 @@ const translations: Record<Language, Translations> = {
     playPreview: 'Önizleme Çal',
     simulatePrayer: 'Namaz Simüle Et',
     simulationTriggered: 'Simülasyon Tetiklendi',
-    welcomeTitle: 'Namaz Vakitleri\'ne Hoş Geldiniz',
-    welcomeSubtitle: 'Namaz vakitlerini hesaplamak için lütfen konumunuzu ayarlayın.',
-    setupLocation: 'Konumu Ayarla',
+    welcomeTitle: 'Namaz Vakitleri',
+    welcomeSubtitle: 'Kurulum için teşekkürler! Hadi ayarlarınızı yapalım.',
+    setupLocation: 'Konumu Ayala',
+    done: 'Devam Et',
+    addNewLocation: 'Yeni Konum Ekle',
+    updateCurrentLocation: 'Mevcut Konumu Güncelle',
+    loadingQibla: 'Kıble yükleniyor...',
+    pointingToKaaba: '🕋 Kabe\'ye işaret ediyor',
+    rotateToAlign: 'Hizalamak için döndürün',
+    fromNorth: 'kuzeyden',
+    qiblaInstructions: 'Telefonunuzu düz tutun ve iğne Kabe\'ye işaret edene kadar döndürün',
+    locationError: 'Konum Hatası',
+    gpsFailedMessage: 'Konumunuz alınamadı. Lütfen deneyin:\n\n• Pencereye yakın olun\n• GPS\'in ayarlarda etkin olduğundan emin olun\n• Manuel arama kullanın',
+    tryAgain: 'Tekrar Dene',
+    useManualSearch: 'Manuel Ara',
+    myLocation: 'Konumum',
+    deleteLocation: 'Konumu Sil',
+    confirmDelete: 'konumunu silmek istediğinize emin misiniz?',
+    cannotDelete: 'Silinemez',
+    lastLocationWarning: 'En az bir konum kayıtlı olmalıdır',
+    longPressToDelete: 'Silmek için konuma uzun basın',
+    welcome: 'Hoş Geldiniz',
+    startSetup: 'Kuruluma Başla',
+    selectLanguage: 'Dil Seçin',
+    selectCalculationMethod: 'Hesaplama Yöntemi',
+    notifications: 'Bildirimler',
+    adhanSound: 'Ezan Sesi',
+    setupComplete: 'Kurulum Tamamlandı',
+    startUsing: 'Uygulamayı Kullanmaya Başla',
+    gpsOnce: 'Konumumu Bul',
+    searchCity: 'Şehir Ara',
+    myLocations: 'Konumlarım',
+    back: 'Geri',
+    continue: 'Devam Et',
+    finish: 'Bitir',
+    stop: 'Durdur',
+    silence: 'Sustur',
+    getStarted: 'Başla',
   },
 };
 

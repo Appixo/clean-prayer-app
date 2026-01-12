@@ -1,17 +1,23 @@
-import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { Bell, CheckCircle } from 'lucide-react-native';
-import type { PrayerTimeData } from '../types';
+import * as Haptics from 'expo-haptics';
+import { Bell, Check } from 'lucide-react-native';
 import { t } from '../lib/i18n';
-import { useStore } from '../store/useStore';
 import { toggleNotification } from '../lib/notifications';
+import { useStore } from '../store/useStore';
+import type { PrayerTimeData } from '../types';
+import React, { useCallback } from 'react';
+import { Text, TouchableOpacity, View, StyleSheet, useColorScheme } from 'react-native';
 
 interface PrayerCardProps {
   prayer: PrayerTimeData;
+  isActive?: boolean;
 }
 
-export function PrayerCard({ prayer }: PrayerCardProps) {
-  const isSunrise = prayer.name === 'sunrise';
+export function PrayerCard({ prayer, isActive = false }: PrayerCardProps) {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
+  const isSunrise = prayer.name.toLowerCase() === 'sunrise' || prayer.displayName === 'Güneş';
+
   // Subscribe to specific notification preference
   const notificationsEnabled = useStore((state) => state.notifications[prayer.name]);
 
@@ -21,96 +27,152 @@ export function PrayerCard({ prayer }: PrayerCardProps) {
   const isPrayed = useStore((state) => !!state.prayerLog[prayerKey]);
   const togglePrayerPerformed = useStore((state) => state.togglePrayerPerformed);
 
-  const handleToggleNotification = () => {
+  const handleToggleNotification = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     toggleNotification(prayer.name);
+  }, [prayer.name]);
+
+  const handleTogglePrayed = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    togglePrayerPerformed(dateKey, prayer.name);
+  }, [dateKey, prayer.name, togglePrayerPerformed]);
+
+  // Define conditional styles manually to avoid NativeWind interop issues during rapid state flips
+  const getContainerStyle = () => {
+    if (isPrayed) {
+      return {
+        backgroundColor: isDark ? 'rgba(6, 78, 59, 0.1)' : '#ecfdf5',
+        borderColor: isDark ? 'rgba(6, 95, 70, 0.3)' : '#a7f3d0',
+      };
+    }
+    if (isActive) {
+      return {
+        backgroundColor: isDark ? '#1f2937' : '#ffffff',
+        borderColor: '#3b82f6',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
+      };
+    }
+    if (isSunrise) {
+      return {
+        backgroundColor: isDark ? 'rgba(69, 26, 3, 0.1)' : '#fffbeb',
+        borderColor: isDark ? 'rgba(120, 53, 15, 0.3)' : '#fef3c7',
+      };
+    }
+    return {
+      backgroundColor: isDark ? 'rgba(31, 41, 55, 0.5)' : '#f9fafb',
+      borderColor: isDark ? '#1f2937' : '#f3f4f6',
+    };
   };
 
-  const handleTogglePrayed = () => {
-    togglePrayerPerformed(dateKey, prayer.name);
+  const getTextStyle = () => {
+    if (isPrayed) return { color: isDark ? '#34d399' : '#047857' };
+    if (isActive) return { color: isDark ? '#60a5fa' : '#2563eb' };
+    if (isSunrise) return { color: isDark ? '#fcd34d' : '#b45309' };
+    return { color: isDark ? '#f3f4f6' : '#111827' };
   };
+
+  const containerStyle = getContainerStyle();
+  const textStyle = getTextStyle();
 
   return (
-    <View
-      className={`p-3 rounded-xl mb-2 ${prayer.isNext
-        ? 'bg-blue-500 dark:bg-blue-600'
-        : isSunrise
-          ? 'bg-amber-50 dark:bg-amber-950/20 border-2 border-amber-200 dark:border-amber-800/50'
-          : 'bg-gray-100 dark:bg-gray-800'
-        }`}
+    <TouchableOpacity
+      onPress={!isSunrise ? handleTogglePrayed : undefined}
+      activeOpacity={isSunrise ? 1 : 0.7}
+      style={[styles.card, containerStyle]}
+      className="p-5 rounded-3xl mb-3 flex-row items-center border"
     >
-      <View className="flex-row justify-between items-center">
-        {/* Left Side: Name and Status */}
-        <View className="flex-1 mr-4">
-          <View className="flex-row items-center">
-            <Text
-              className={`text-base font-semibold ${prayer.isNext
-                ? 'text-white'
-                : isSunrise
-                  ? 'text-amber-900 dark:text-amber-200'
-                  : 'text-gray-900 dark:text-gray-100'
-                } ${isPrayed ? 'line-through opacity-60' : ''}`}
-            >
-              {prayer.displayName}
-            </Text>
-            {isPrayed && (
-              <View className="ml-2 bg-green-500 rounded-full p-0.5">
-                <CheckCircle size={12} color="white" />
-              </View>
-            )}
-          </View>
-
-          {prayer.isNext && (
-            <Text className="text-white text-xs mt-0.5 opacity-90">
-              {t('nextPrayer')}
-            </Text>
+      {/* Checkmark Area */}
+      {isSunrise ? (
+        <View style={{ width: 32 }} className="mr-4 items-center">
+          <Text style={{ fontSize: 20 }}>☀️</Text>
+        </View>
+      ) : (
+        <View
+          style={[
+            styles.checkCircle,
+            isPrayed ? styles.checkCirclePrayed : (isActive ? styles.checkCircleActive : styles.checkCircleInactive),
+            { borderColor: isPrayed ? '#10b981' : (isActive ? '#3b82f6' : (isDark ? '#374151' : '#e5e7eb')) }
+          ]}
+          className="w-8 h-8 rounded-full border-2 items-center justify-center mr-4"
+        >
+          {isPrayed && (
+            <Check size={18} color="white" strokeWidth={4} />
           )}
         </View>
+      )}
 
-        {/* Right Side: Time and Actions */}
-        <View className="flex-row items-center gap-3">
-          {/* Mark as Prayed Checkbox */}
-          {!isSunrise && (
-            <TouchableOpacity onPress={handleTogglePrayed}>
-              <View className={`w-6 h-6 rounded-full border items-center justify-center ${isPrayed
-                  ? 'bg-green-500 border-green-500'
-                  : (prayer.isNext ? 'border-white/50' : 'border-gray-400 dark:border-gray-500')
-                }`}>
-                {isPrayed && <CheckCircle size={16} color="white" />}
-              </View>
-            </TouchableOpacity>
-          )}
-
-          <Text
-            className={`text-lg font-bold ${prayer.isNext
-              ? 'text-white'
-              : isSunrise
-                ? 'text-amber-900 dark:text-amber-200'
-                : 'text-gray-900 dark:text-gray-100'
-              }`}
-          >
-            {prayer.formattedTime}
+      {/* Prayer Info */}
+      <View className="flex-1">
+        <Text
+          style={textStyle}
+          className="font-bold text-lg"
+        >
+          {prayer.displayName}
+          {isPrayed && ' ✓'}
+        </Text>
+        {isActive && !isPrayed && (
+          <Text className="text-xs text-blue-500 font-bold uppercase tracking-widest mt-0.5">
+            {t('nextPrayer')}
           </Text>
+        )}
+      </View>
 
+      {/* Right Section: Time and Notifications */}
+      <View className="flex-row items-center gap-4">
+        <Text
+          style={textStyle}
+          className="text-xl font-bold"
+        >
+          {prayer.formattedTime}
+        </Text>
+
+        {isSunrise ? (
+          <View style={{ width: 24 }} />
+        ) : (
           <TouchableOpacity
             onPress={handleToggleNotification}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            className="p-1"
           >
             {notificationsEnabled ? (
               <Bell
                 size={20}
-                color={prayer.isNext ? '#ffffff' : (isSunrise ? '#78350f' : '#3b82f6')}
-                fill={prayer.isNext ? '#ffffff' : (isSunrise ? '#78350f' : '#3b82f6')}
+                color={isPrayed ? '#10b981' : '#3b82f6'}
+                fill={isPrayed ? '#10b981' : '#3b82f6'}
               />
             ) : (
               <Bell
                 size={20}
-                color={prayer.isNext ? '#ffffff' : (isSunrise ? '#78350f' : '#9ca3af')}
-                style={{ opacity: 0.6 }}
+                color="#9ca3af"
+                style={{ opacity: 0.4 }}
               />
             )}
           </TouchableOpacity>
-        </View>
+        )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    // Structural styles remain in className, colors moved here
+  },
+  checkCircle: {
+    // Colors handled dynamically in the component
+  },
+  checkCirclePrayed: {
+    backgroundColor: '#10b981',
+  },
+  checkCircleActive: {
+    // Border handles color
+  },
+  checkCircleInactive: {
+    // Border handles color
+  }
+});
+

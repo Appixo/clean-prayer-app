@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, useColorScheme } from 'react-native';
 import { DateTime, Settings } from 'luxon';
 import { getHijriDate } from '../lib/hijri';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
@@ -12,6 +12,9 @@ interface HijriDateProps {
 }
 
 export function HijriDate({ date, onDateChange, onReset }: HijriDateProps) {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
   // We use 0 adjustment for the display since the parent manages the actual date
   const hijri = getHijriDate(date, 0);
 
@@ -44,7 +47,10 @@ export function HijriDate({ date, onDateChange, onReset }: HijriDateProps) {
   else dateLabel = `${diffDays} ${diffDays === -1 ? t('day') : t('days')}`;
 
   return (
-    <View className="bg-gray-100 dark:bg-gray-800 p-3 rounded-xl mb-3 flex-row items-center justify-between">
+    <View
+      style={{ backgroundColor: isDark ? '#1f2937' : '#f3f4f6' }}
+      className="p-3 rounded-xl mb-3 flex-row items-center justify-between"
+    >
       <TouchableOpacity
         onPress={() => adjustDate(-1)}
         className="p-2"

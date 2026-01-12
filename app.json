@@ -10,8 +10,8 @@
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "resizeMode": "cover",
+      "backgroundColor": "#f8fafc"
     },
     "notification": {
       "icon": "./assets/notification_icon.png",
@@ -21,14 +21,14 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.namazvakitleri.family",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "We need your location to calculate accurate prayer times."
+        "NSLocationWhenInUseUsageDescription": "Namaz Vakitleri, ezan vakitlerini doğru hesaplamak için konumunuza ihtiyaç duyar."
       }
     },
     "android": {
       "package": "com.namazvakitleri.family",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#1e3a8a"
       },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
@@ -36,14 +36,14 @@
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "POST_NOTIFICATIONS",
-        "SCHEDULE_EXACT_ALARM",
+        "USE_EXACT_ALARM",
         "WAKE_LOCK"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "backgroundColor": "#1a1a1a"
     },
     "extra": {
       "eas": {
@@ -51,8 +51,27 @@
       }
     },
     "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification_icon.png",
+          "color": "#3b82f6",
+          "sounds": [
+            "./assets/sounds/adhan.mp3"
+          ]
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Namaz Vakitleri, ezan vakitlerini doğru hesaplamak için konumunuza ihtiyaç duyar."
+        }
+      ],
       "expo-build-properties",
-      "./plugins/withAdhanAudio"
+      "./plugins/withAdhanAudio",
+      "expo-localization"
     ]
   }
 }

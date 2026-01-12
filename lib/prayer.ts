@@ -15,6 +15,7 @@ import {
   HighLatitudeRule as AdhanHighLatitudeRule,
 } from 'adhan';
 import { DateTime } from 'luxon';
+import { logger } from './logger';
 
 /**
  * Maps our CalculationMethod type to adhan library's CalculationMethod methods
@@ -64,6 +65,9 @@ function getCalculationParameters(
       break;
     case 'Singapore':
       params = AdhanCalculationMethod.Singapore();
+      break;
+    case 'Jafari':
+      params = AdhanCalculationMethod.Tehran(); // Closest approximation for Shia
       break;
     default:
       params = AdhanCalculationMethod.MuslimWorldLeague();

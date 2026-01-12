@@ -60,7 +60,11 @@ export function QiblaCompass({ location }: QiblaCompassProps) {
     }, []);
 
     const _subscribe = () => {
-        if (Platform.OS === 'web') return;
+        if (Platform.OS === 'web') {
+            // Dummy rotation for web
+            rotation.value = 0;
+            return;
+        }
 
         Magnetometer.setUpdateInterval(40); // 25fps
 
@@ -122,14 +126,13 @@ export function QiblaCompass({ location }: QiblaCompassProps) {
     });
 
     return (
-        <View className="flex-1 items-center justify-center bg-gray-900">
+        <View className="items-center justify-center bg-[#1a1a1a]">
             <View className="relative items-center justify-center" style={{ width: COMPASS_SIZE, height: COMPASS_SIZE }}>
 
                 {/* Dial (Rotates to keep N pointing North) */}
                 <Animated.View style={[styles.dial, animatedDialStyle]}>
-                    {/* Compass Background Image or SVG */}
                     <View style={styles.compassFace}>
-                        <Text style={[styles.cardinal, styles.north]}>N</Text>
+                        <Text style={[styles.cardinal, styles.north]}>{t('fajr').charAt(0).toUpperCase() === 'İ' ? 'N' : 'N'}</Text>
                         <Text style={[styles.cardinal, styles.east]}>E</Text>
                         <Text style={[styles.cardinal, styles.south]}>S</Text>
                         <Text style={[styles.cardinal, styles.west]}>W</Text>
@@ -143,22 +146,28 @@ export function QiblaCompass({ location }: QiblaCompassProps) {
                         <View style={[styles.qiblaMarkerContainer, { transform: [{ rotate: `${qiblaAngle}deg` }] }]}>
                             <View style={styles.qiblaLine} />
                             <View style={styles.kaabaIcon}>
-                                <Text style={{ fontSize: 24 }}>🕋</Text>
+                                <Text style={{ fontSize: 32 }}>🕋</Text>
                             </View>
                         </View>
                     </View>
                 </Animated.View>
 
-                {/* Fixed Pointer (Phone Heading) - Optional, usually a line at top */}
+                {/* Fixed Pointer (Phone Heading) */}
                 <View style={styles.fixedPointer} />
 
             </View>
 
-            <View className="mt-10 items-center">
-                <Text className="text-white text-3xl font-bold">{Math.round(-rotation.value > 0 ? 360 - rotation.value : -rotation.value)}°</Text>
-                <Text className="text-gray-400 text-base">Qibla: {qiblaAngle}°</Text>
-                <Text className="text-gray-500 text-xs mt-2">Declination: {declination.toFixed(1)}°</Text>
-                {Platform.OS === 'web' && <Text className="text-yellow-500 mt-4">Compass not supported on Web</Text>}
+            <View className="mt-12 items-center">
+                <View className="flex-row items-baseline">
+                    <Text className="text-white text-5xl font-bold">
+                        {Math.round(-rotation.value < 0 ? 360 + rotation.value : -rotation.value) % 360}°
+                    </Text>
+                    <Text className="text-gray-500 text-lg ml-2 font-medium">{t('fromNorth')}</Text>
+                </View>
+
+                <View className="mt-4 flex-row py-2 px-6 bg-blue-500/10 rounded-full border border-blue-500/20">
+                    <Text className="text-blue-400 font-bold">{t('pointingToKaaba')}: {qiblaAngle}°</Text>
+                </View>
             </View>
         </View>
     );

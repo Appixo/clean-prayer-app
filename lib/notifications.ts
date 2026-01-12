@@ -1,76 +1,153 @@
-import notifee, {
-    AndroidImportance,
-    AndroidNotificationSetting,
-    EventType,
-    TimestampTrigger,
-    TriggerType,
-    Event
-} from '@notifee/react-native';
 import { Platform } from 'react-native';
+import { logger } from './logger';
 import { useStore } from '../store/useStore';
-import { calculatePrayerTimes } from './prayer';
+import { calculatePrayerTimes, formatPrayerTime } from './prayer';
 import { getCurrentLocation } from './location';
 import { t } from './i18n';
 import type { PrayerName } from '../types';
 
+// Conditional import for Notifee (Native only)
+let notifee: any;
+let AndroidImportance: any;
+let AndroidNotificationSetting: any;
+let AuthorizationStatus: any;
+let EventType: any;
+let TriggerType: any;
+let AndroidCategory: any;
+let AndroidLaunchActivityFlag: any;
+
+if (Platform.OS !== 'web') {
+    try {
+        const NotifeeModule = require('@notifee/react-native');
+        notifee = NotifeeModule.default;
+        AndroidImportance = NotifeeModule.AndroidImportance;
+        AndroidNotificationSetting = NotifeeModule.AndroidNotificationSetting;
+        AuthorizationStatus = NotifeeModule.AuthorizationStatus;
+        EventType = NotifeeModule.EventType;
+        TriggerType = NotifeeModule.TriggerType;
+        AndroidCategory = NotifeeModule.AndroidCategory;
+        AndroidLaunchActivityFlag = NotifeeModule.AndroidLaunchActivityFlag;
+    } catch (e) {
+        logger.error('Failed to load @notifee/react-native', e);
+    }
+}
+
 // Helper to get Notification IDs
 const getNotificationId = (prayerName: string, dateStr: string) => `prayer_${prayerName}_${dateStr}`;
 
-// Register Background Event (Must be outside component)
-notifee.onBackgroundEvent(async ({ type, detail }: Event) => {
-    if (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'MARK_PRAYED') {
-        const { prayerName, date } = detail.notification?.data || {};
-        // Access store directly carefully, or better, just import it. 
-        // Note: AsyncStorage/MMKV works in background usually.
-        if (prayerName && date) {
-            useStore.getState().togglePrayerPerformed(date as string, prayerName as string);
+// Register Background Event
+if (Platform.OS !== 'web' && notifee) {
+    try {
+        notifee.onBackgroundEvent(async ({ type, detail }: any) => {
+            logger.info('Background Event Received', { type, detail: detail.pressAction?.id });
 
-            if (detail.notification?.id) {
-                await notifee.cancelNotification(detail.notification.id);
+            if (type === EventType.DELIVERED &&
+                detail.notification?.android?.asForegroundService &&
+                detail.notification?.id !== 'persistent_service') {
+                useStore.getState().setAdhanPlaying(true);
             }
-        }
-    }
-});
 
-/**
- * Sets up foreground event listeners for Notifee
- */
-export function setupNotificationListeners() {
-    return notifee.onForegroundEvent(({ type, detail }) => {
-        if (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'MARK_PRAYED') {
-            const { prayerName, date } = detail.notification?.data || {};
-            if (prayerName && date) {
-                useStore.getState().togglePrayerPerformed(date as string, prayerName as string);
+            if (type === EventType.PRESS || (type === EventType.ACTION_PRESS && (detail.pressAction?.id === 'MARK_PRAYED' || detail.pressAction?.id === 'STOP_ADHAN'))) {
+                const { prayerName, date } = detail.notification?.data || {};
 
-                if (detail.notification?.id) {
-                    notifee.cancelNotification(detail.notification.id);
+                if (detail.pressAction?.id === 'MARK_PRAYED' && prayerName && date) {
+                    useStore.getState().togglePrayerPerformed(date as string, prayerName as string);
+                }
+
+                if (detail.notification?.android?.asForegroundService) {
+                    await notifee.stopForegroundService();
+                    useStore.getState().setAdhanPlaying(false);
+                }
+
+                if (detail.notification?.id && detail.pressAction?.id === 'MARK_PRAYED') {
+                    await notifee.cancelNotification(detail.notification.id);
                 }
             }
-        }
-    });
+        });
+    } catch (e) {
+        logger.error('Failed to register Background Event', e);
+    }
 }
 
-/**
- * Requests notification permissions and sets up Channels/Categories
- */
-export async function requestNotificationPermissions(): Promise<boolean> {
-    if (Platform.OS === 'web') return false;
+const handleMarkPrayed = async (notification: any) => {
+    const { prayerName, date } = notification?.data || {};
+    if (prayerName && date) {
+        useStore.getState().togglePrayerPerformed(date as string, prayerName as string);
 
-    // Check for Alarm Permission on Android 12+
+        if (notification?.id) {
+            await notifee.cancelNotification(notification.id);
+            logger.info('Notification cancelled after MARK_PRAYED', { id: notification.id });
+        }
+    }
+};
+
+export function setupNotificationListeners() {
+    if (Platform.OS === 'web' || !notifee) return { remove: () => { } };
+
+    const unsubscribe = notifee.onForegroundEvent(({ type, detail }: any) => {
+        logger.info('Foreground Event Received', { type });
+
+        // ✅ ONLY handle user interactions, ignore DELIVERED events
+        switch (type) {
+            case EventType.DELIVERED:
+                if (detail.notification?.android?.asForegroundService &&
+                    detail.notification?.id !== 'persistent_service') {
+                    useStore.getState().setAdhanPlaying(true);
+                }
+                break;
+            case EventType.DISMISSED:
+                if (detail.notification?.android?.asForegroundService) {
+                    notifee.stopForegroundService().catch(() => { });
+                    useStore.getState().setAdhanPlaying(false);
+                }
+                break;
+            case EventType.PRESS:
+                if (detail.notification?.android?.asForegroundService) {
+                    notifee.stopForegroundService().catch(() => { });
+                    useStore.getState().setAdhanPlaying(false);
+                }
+                break;
+            case EventType.ACTION_PRESS:
+                if (detail.notification?.android?.asForegroundService) {
+                    notifee.stopForegroundService().catch(() => { });
+                    useStore.getState().setAdhanPlaying(false);
+                }
+                if (detail.pressAction?.id === 'MARK_PRAYED') {
+                    handleMarkPrayed(detail.notification);
+                }
+                break;
+            default:
+                break;
+        }
+    });
+
+    return { remove: unsubscribe };
+}
+
+export async function requestNotificationPermissions(): Promise<boolean> {
+    if (Platform.OS === 'web' || !notifee) return false;
+
     if (Platform.OS === 'android') {
         const settings = await notifee.getNotificationSettings();
+        // With USE_EXACT_ALARM we don't need to manually redirect to settings
+        // But we still check it for logging/diagnostic purposes
         if (settings.android.alarm === AndroidNotificationSetting.DISABLED) {
-            // We could prompt user to open settings, but for now just request notification perm
-            // Real production app should have a UI flow for this.
-            // await notifee.openAlarmPermissionSettings();
+            logger.info('Exact alarms disabled by system policy or user');
+        }
+
+        // Optional: Check for battery optimizations on Samsung/Android
+        const batteryOptimizationEnabled = await notifee.isBatteryOptimizationEnabled();
+        if (batteryOptimizationEnabled) {
+            logger.warn('Battery optimization enabled - notifications might be delayed by OS');
         }
     }
 
     const settings = await notifee.requestPermission();
     const isGranted = settings.authorizationStatus >= AuthorizationStatus.AUTHORIZED;
 
+    logger.info('Notification permission status', { isGranted, details: settings.authorizationStatus });
+
     if (isGranted) {
-        // Setup Categories (Actions)
         await notifee.setNotificationCategories([
             {
                 id: 'prayer',
@@ -78,6 +155,10 @@ export async function requestNotificationPermissions(): Promise<boolean> {
                     {
                         id: 'MARK_PRAYED',
                         title: t('success'),
+                    },
+                    {
+                        id: 'STOP_ADHAN',
+                        title: t('silence'),
                     },
                 ],
             },
@@ -105,83 +186,117 @@ export async function requestNotificationPermissions(): Promise<boolean> {
     return isGranted;
 }
 
+export async function checkBatteryOptimization() {
+    if (Platform.OS !== 'android' || !notifee) return false;
+    return await notifee.isBatteryOptimizationEnabled();
+}
+
+export async function checkExactAlarmStatus() {
+    if (Platform.OS !== 'android' || !notifee) return true;
+    const settings = await notifee.getNotificationSettings();
+    return settings.android.alarm === AndroidNotificationSetting.ENABLED;
+}
+
+export async function requestBatteryOptimizationExemption() {
+    if (Platform.OS !== 'android' || !notifee) return;
+    await notifee.openBatteryOptimizationSettings();
+}
+
 /**
- * Schedules notifications for a specific prayer for the next 7 days
+ * Consolidate and schedule all future prayer notifications.
+ * This is the primary background scheduling logic.
  */
-export async function schedulePrayerNotifications(prayerName: PrayerName) {
-    if (Platform.OS === 'web') return;
+export async function scheduleDailyNotifications() {
+    if (Platform.OS === 'web' || !notifee) return;
 
-    await cancelPrayerNotifications(prayerName);
+    try {
+        // ✅ CRITICAL: Check/Request permissions before scheduling
+        const hasPermission = await requestNotificationPermissions();
+        if (!hasPermission) {
+            logger.warn('Cannot schedule notifications: Permission denied');
+            return;
+        }
 
-    const isEnabled = useStore.getState().notifications[prayerName];
-    if (!isEnabled) return;
+        // 1. Clear all existing triggers to avoid duplicates
+        await notifee.cancelAllNotifications();
+        logger.info('Cancelled all existing notifications for rescheduling');
 
-    const hasPermission = await requestNotificationPermissions();
-    if (!hasPermission) return;
+        const state = useStore.getState();
+        const { location, calculationMethod, asrMethod, highLatitudeRule, playAdhan, notifications } = state;
 
-    const location = await getCurrentLocation();
-    if (!location) return;
+        if (!location) {
+            logger.warn('Cannot schedule notifications: No location');
+            return;
+        }
 
-    const { calculationMethod, asrMethod, highLatitudeRule, playAdhan } = useStore.getState();
-    const now = new Date();
+        const now = new Date();
+        const scheduledCount = { triggers: 0 };
 
-    for (let i = 0; i < 7; i++) {
-        const date = new Date();
-        date.setDate(now.getDate() + i);
-        const dateStr = date.toISOString().split('T')[0];
+        // Schedule for next 7 days for robustness when app is killed
+        for (let i = 0; i < 7; i++) {
+            const date = new Date();
+            date.setDate(now.getDate() + i);
+            const dateStr = date.toISOString().split('T')[0];
 
-        const prayerTimes = calculatePrayerTimes(
-            location.coordinates,
-            calculationMethod,
-            asrMethod,
-            highLatitudeRule,
-            date
-        );
+            const prayerTimesDaily = calculatePrayerTimes(
+                location,
+                calculationMethod,
+                asrMethod,
+                highLatitudeRule,
+                date
+            );
 
-        const prayerTime = prayerTimes[prayerName];
+            const prayerNames: PrayerName[] = ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha'];
 
-        if (prayerTime && prayerTime.getTime() > now.getTime()) {
-            const isFriday = date.getDay() === 5;
-            const nextPrayerName = t(prayerName);
-            const displayName = (prayerName === 'dhuhr' && isFriday) ? t('jumuah') : nextPrayerName;
+            for (const name of prayerNames) {
+                // Check if notification is enabled for this specific prayer
+                if (!notifications[name]) continue;
 
-            const notificationId = getNotificationId(prayerName, dateStr);
-            const channelId = playAdhan ? 'adhan' : 'default';
+                const prayerTime = (prayerTimesDaily as any)[name];
+                if (!prayerTime || prayerTime.getTime() <= now.getTime()) continue;
 
-            const trigger: TimestampTrigger = {
-                type: TriggerType.TIMESTAMP,
-                timestamp: prayerTime.getTime(),
-                alarmManager: {
-                    allowWhileIdle: true,
-                },
-            };
+                const isFriday = date.getDay() === 5;
+                const localizedName = (name === 'dhuhr' && isFriday) ? t('jumuah') : t(name);
 
-            // Auto dismiss after 3 mins + buffer = 3.5 mins (210000ms)
-            // or 5 mins (300000ms)
-            const TIMEOUT_MS = 300000;
+                const notificationId = getNotificationId(name, dateStr);
+                const channelId = playAdhan ? 'adhan' : 'default';
 
-            try {
+                const trigger = {
+                    type: TriggerType.TIMESTAMP,
+                    timestamp: prayerTime.getTime(),
+                    alarmManager: {
+                        allowWhileIdle: true,
+                    },
+                };
+
+                const TIMEOUT_MS = 300000; // 5 minutes adhan timeout
+
                 await notifee.createTriggerNotification(
                     {
                         id: notificationId,
                         title: t('prayerTimes'),
-                        body: `${t('itsTimeFor')} ${displayName}`,
-                        data: { prayerName, date: dateStr },
+                        body: `${t('itsTimeFor')} ${localizedName}`,
+                        data: { prayerName: name, date: dateStr },
                         android: {
                             channelId,
                             asForegroundService: playAdhan,
+                            asAlarm: true, // Specific requirement for high-priority triggers
                             ongoing: playAdhan,
-                            loopSound: false, // Explicitly no loop
-                            timeoutAfter: playAdhan ? TIMEOUT_MS : undefined, // Native auto-dismiss
+                            loopSound: false,
+                            timeoutAfter: playAdhan ? TIMEOUT_MS : undefined,
+                            category: AndroidCategory.ALARM,
                             pressAction: {
                                 id: 'default',
+                                launchActivity: 'default',
                             },
                             actions: [
                                 {
                                     title: t('success'),
-                                    pressAction: {
-                                        id: 'MARK_PRAYED',
-                                    },
+                                    pressAction: { id: 'MARK_PRAYED' },
+                                },
+                                {
+                                    title: t('silence'),
+                                    pressAction: { id: 'STOP_ADHAN' },
                                 }
                             ],
                             sound: playAdhan ? 'adhan' : 'default',
@@ -193,18 +308,22 @@ export async function schedulePrayerNotifications(prayerName: PrayerName) {
                     },
                     trigger,
                 );
-            } catch (e) {
-                console.warn(`Failed to schedule ${prayerName} for ${dateStr}`, e);
+                scheduledCount.triggers++;
             }
         }
+        logger.info(`Successfully scheduled ${scheduledCount.triggers} notifications for the next 7 days`);
+    } catch (e) {
+        logger.error('Failed to schedule daily notifications', e);
     }
 }
 
-/**
- * Cancels all scheduled notifications for a specific prayer
- */
+export async function schedulePrayerNotifications(prayerName: PrayerName) {
+    // Redirected to the consolidate scheduler to avoid logic duplication
+    await scheduleDailyNotifications();
+}
+
 export async function cancelPrayerNotifications(prayerName: PrayerName) {
-    if (Platform.OS === 'web') return;
+    if (Platform.OS === 'web' || !notifee) return;
 
     const now = new Date();
     const idsToCancel: string[] = [];
@@ -216,31 +335,78 @@ export async function cancelPrayerNotifications(prayerName: PrayerName) {
         idsToCancel.push(getNotificationId(prayerName, dateStr));
     }
 
-    await notifee.cancelTriggerNotifications(idsToCancel);
-    for (const id of idsToCancel) {
-        await notifee.cancelNotification(id);
-    }
-}
-
-/**
- * Refreshes all scheduled notifications
- */
-export async function refreshAllNotifications() {
-    if (Platform.OS === 'web') return;
-
-    const prayers: PrayerName[] = ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha'];
-    for (const prayer of prayers) {
-        if (useStore.getState().notifications[prayer]) {
-            await schedulePrayerNotifications(prayer);
-        } else {
-            await cancelPrayerNotifications(prayer);
+    try {
+        await notifee.cancelTriggerNotifications(idsToCancel);
+        for (const id of idsToCancel) {
+            await notifee.cancelNotification(id);
         }
-    }
+    } catch (e) { }
+}
+
+export async function refreshAllNotifications() {
+    await scheduleDailyNotifications();
+    await updatePersistentNotification();
 }
 
 /**
- * Toggles notification preference
+ * Creates a persistent notification that keeps the app alive in memory.
+ * Required for reliable background performance on restricted devices.
  */
+export async function updatePersistentNotification() {
+    if (Platform.OS !== 'android' || !notifee) return;
+
+    try {
+        const state = useStore.getState();
+        const { location, calculationMethod, asrMethod, highLatitudeRule } = state;
+
+        if (!location) return;
+
+        const prayerTimes = calculatePrayerTimes(
+            location,
+            calculationMethod,
+            asrMethod,
+            highLatitudeRule,
+            new Date()
+        );
+
+        if (!prayerTimes.nextPrayer) return;
+
+        const isFriday = new Date().getDay() === 5;
+        const nextPrayerName = prayerTimes.nextPrayer === 'dhuhr' && isFriday ? t('jumuah') : t(prayerTimes.nextPrayer);
+        const nextPrayerTime = prayerTimes[prayerTimes.nextPrayer] as Date;
+
+        const timeFormat = state.timeFormat === '12h';
+        const formattedTime = formatPrayerTime(nextPrayerTime, timeFormat);
+
+        // Ensure channel exists
+        await notifee.createChannel({
+            id: 'default',
+            name: 'Default',
+            importance: AndroidImportance.DEFAULT,
+        });
+
+        await notifee.displayNotification({
+            id: 'persistent_service',
+            title: t('prayerTimes'),
+            body: `${t('nextPrayer')}: ${nextPrayerName} (${formattedTime})`,
+            android: {
+                channelId: 'default',
+                asForegroundService: true, // Elevates process priority 24/7
+                ongoing: true,
+                autoCancel: false,
+                category: AndroidCategory.SERVICE,
+                pressAction: {
+                    id: 'default',
+                    launchActivity: 'default',
+                },
+                color: '#3b82f6',
+            },
+        });
+    } catch (e) {
+        logger.error('Failed to update persistent notification', e);
+    }
+}
+
 export async function toggleNotification(prayerName: PrayerName) {
     const current = useStore.getState().notifications[prayerName];
     const next = !current;
@@ -256,21 +422,46 @@ export async function toggleNotification(prayerName: PrayerName) {
     return next;
 }
 
-/**
- * Simulates a prayer notification immediately
- */
-export async function simulatePrayerNotification() {
-    console.log('--- Prayer Simulation (Notifee) ---');
+export async function stopAdhan() {
+    if (Platform.OS === 'web' || !notifee) return;
+    try {
+        await notifee.stopForegroundService();
+        useStore.getState().setAdhanPlaying(false);
+    } catch (e) {
+        logger.error('Error stopping adhan', e);
+    }
+}
 
-    if (Platform.OS === 'web') {
-        alert('Simulation: Adhan (Not available on web)');
+export async function simulatePrayerNotification() {
+    logger.info('--- Prayer Simulation (Notifee) ---');
+
+    if (Platform.OS === 'web' || !notifee) {
+        logger.info('--- WEB SIMULATION: Playing Adhan ---');
+        console.log('Playing Adhan (Web Mock)');
         return;
     }
+
+    const SIM_ID = 'simulation_prayer';
+    await notifee.cancelNotification(SIM_ID);
+    await notifee.stopForegroundService();
 
     const playAdhan = useStore.getState().playAdhan;
     const channelId = playAdhan ? 'adhan' : 'default';
 
+    // Ensure channel exists before starting foreground service
+    if (Platform.OS === 'android' && playAdhan) {
+        await notifee.createChannel({
+            id: 'adhan',
+            name: 'Adhan Notifications',
+            importance: AndroidImportance.HIGH,
+            sound: 'adhan',
+            vibration: true,
+            badge: true,
+        });
+    }
+
     await notifee.displayNotification({
+        id: SIM_ID,
         title: '🕌 ' + t('simulatePrayer'),
         body: t('itsTimeFor') + ' ' + t('fajr') + ' (SIMULATION)',
         data: { prayerName: 'fajr', date: new Date().toISOString().split('T')[0] },
@@ -279,9 +470,13 @@ export async function simulatePrayerNotification() {
             asForegroundService: playAdhan,
             ongoing: playAdhan,
             loopSound: false,
-            timeoutAfter: playAdhan ? 60000 : undefined, // 1 min for simulation
+            timeoutAfter: playAdhan ? 60000 : undefined,
             pressAction: { id: 'default' },
-            actions: [{ title: t('success'), pressAction: { id: 'MARK_PRAYED' } }],
+            actions: [
+                { title: t('success'), pressAction: { id: 'MARK_PRAYED' } },
+                { title: t('silence'), pressAction: { id: 'STOP_ADHAN' } }
+            ],
+            sound: playAdhan ? 'adhan' : 'default',
         },
     });
 }

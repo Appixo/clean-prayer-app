@@ -30,7 +30,8 @@ export type CalculationMethod =
   | 'Kuwait'
   | 'Qatar'
   | 'Singapore'
-  | 'NorthAmerica';
+  | 'NorthAmerica'
+  | 'Jafari';
 
 export type AsrMethod = 'Standard' | 'Hanafi';
 
@@ -46,6 +47,7 @@ export type Theme = 'light' | 'dark' | 'system';
 export interface LocationData {
   coordinates: Coordinates;
   name?: string;
+  country?: string;
   isManual: boolean;
 }
 
@@ -56,4 +58,12 @@ export interface PrayerTimeData {
   formattedTime: string;
   isNext: boolean;
 }
+
+export type SavedLocation = {
+  id: string;
+  city: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+};
 
