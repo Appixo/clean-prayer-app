@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, Text, ScrollView, Linking, TouchableOpacity } from 'react-native';
 import { ExternalLink } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { t } from '../lib/i18n';
 
 export default function AboutScreen() {
+  const insets = useSafeAreaInsets();
   const version = '1.0.0';
 
   const openLink = (url: string) => {
@@ -13,7 +15,10 @@ export default function AboutScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-white dark:bg-gray-900">
+    <ScrollView 
+      className="flex-1 bg-white dark:bg-gray-900"
+      contentContainerStyle={{ paddingBottom: 100 }} // Fixed: Prevent excessive bottom whitespace
+    >
       <View className="p-4">
         <View className="mb-6">
           <Text className="text-gray-900 dark:text-gray-100 text-2xl font-bold mb-2">

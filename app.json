@@ -37,7 +37,8 @@
         "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
         "POST_NOTIFICATIONS",
         "USE_EXACT_ALARM",
-        "WAKE_LOCK"
+        "WAKE_LOCK",
+        "RECEIVE_BOOT_COMPLETED"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
@@ -67,6 +68,55 @@
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "Namaz Vakitleri, ezan vakitlerini doğru hesaplamak için konumunuza ihtiyaç duyar."
+        }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "PrayerTimesWidget",
+              "label": "Namaz Vakitleri",
+              "minWidth": "250dp",
+              "minHeight": "130dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "maxResizeWidth": "400dp",
+              "maxResizeHeight": "220dp",
+              "resizeMode": "horizontal|vertical",
+              "description": "Sonraki namaz vaktini ve şehir bilgisini gösterir",
+              "previewImage": "./assets/icon.png",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "NextPrayerWidget",
+              "label": "Sonraki Namaz",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 2,
+              "targetCellHeight": 2,
+              "maxResizeWidth": "200dp",
+              "maxResizeHeight": "200dp",
+              "resizeMode": "horizontal|vertical",
+              "description": "Geri sayım, sonraki namaz adı ve saati",
+              "previewImage": "./assets/icon.png",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "DailyScheduleWidget",
+              "label": "Günlük Vakitler",
+              "minWidth": "250dp",
+              "minHeight": "250dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 4,
+              "maxResizeWidth": "400dp",
+              "maxResizeHeight": "400dp",
+              "resizeMode": "horizontal|vertical",
+              "description": "Tüm namaz vakitleri listesi",
+              "previewImage": "./assets/icon.png",
+              "updatePeriodMillis": 1800000
+            }
+          ]
         }
       ],
       "expo-build-properties",

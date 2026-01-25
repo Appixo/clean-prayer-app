@@ -41,10 +41,12 @@ if (Platform.OS !== 'web' && notifee) {
         notifee.onBackgroundEvent(async ({ type, detail }: any) => {
             logger.info('Background Event Received', { type, detail: detail.pressAction?.id });
 
-            if (type === EventType.DELIVERED &&
-                detail.notification?.android?.asForegroundService &&
-                detail.notification?.id !== 'persistent_service') {
-                useStore.getState().setAdhanPlaying(true);
+            // When notification is delivered, mark adhan as playing if needed
+            if (type === EventType.DELIVERED && detail.notification?.id !== 'persistent_service') {
+                const { playAdhan } = detail.notification?.data || {};
+                if (playAdhan === 'true') {
+                    useStore.getState().setAdhanPlaying(true);
+                }
             }
 
             if (type === EventType.PRESS || (type === EventType.ACTION_PRESS && (detail.pressAction?.id === 'MARK_PRAYED' || detail.pressAction?.id === 'STOP_ADHAN'))) {
@@ -54,9 +56,14 @@ if (Platform.OS !== 'web' && notifee) {
                     useStore.getState().togglePrayerPerformed(date as string, prayerName as string);
                 }
 
-                if (detail.notification?.android?.asForegroundService) {
+                // Stop foreground service if it was started
+                const serviceId = detail.notification?.id + '_service';
+                try {
+                    await notifee.cancelNotification(serviceId);
                     await notifee.stopForegroundService();
                     useStore.getState().setAdhanPlaying(false);
+                } catch (e) {
+                    // Ignore errors if service wasn't running
                 }
 
                 if (detail.notification?.id && detail.pressAction?.id === 'MARK_PRAYED') {
@@ -87,31 +94,24 @@ export function setupNotificationListeners() {
     const unsubscribe = notifee.onForegroundEvent(({ type, detail }: any) => {
         logger.info('Foreground Event Received', { type });
 
-        // ✅ ONLY handle user interactions, ignore DELIVERED events
+        // ✅ Handle DELIVERED events to mark adhan as playing
         switch (type) {
             case EventType.DELIVERED:
-                if (detail.notification?.android?.asForegroundService &&
-                    detail.notification?.id !== 'persistent_service') {
-                    useStore.getState().setAdhanPlaying(true);
+                if (detail.notification?.id !== 'persistent_service') {
+                    const { playAdhan } = detail.notification?.data || {};
+                    if (playAdhan === 'true') {
+                        useStore.getState().setAdhanPlaying(true);
+                    }
                 }
                 break;
             case EventType.DISMISSED:
-                if (detail.notification?.android?.asForegroundService) {
-                    notifee.stopForegroundService().catch(() => { });
-                    useStore.getState().setAdhanPlaying(false);
-                }
+                useStore.getState().setAdhanPlaying(false);
                 break;
             case EventType.PRESS:
-                if (detail.notification?.android?.asForegroundService) {
-                    notifee.stopForegroundService().catch(() => { });
-                    useStore.getState().setAdhanPlaying(false);
-                }
+                useStore.getState().setAdhanPlaying(false);
                 break;
             case EventType.ACTION_PRESS:
-                if (detail.notification?.android?.asForegroundService) {
-                    notifee.stopForegroundService().catch(() => { });
-                    useStore.getState().setAdhanPlaying(false);
-                }
+                useStore.getState().setAdhanPlaying(false);
                 if (detail.pressAction?.id === 'MARK_PRAYED') {
                     handleMarkPrayed(detail.notification);
                 }
@@ -221,8 +221,32 @@ export async function scheduleDailyNotifications() {
         await notifee.cancelAllNotifications();
         logger.info('Cancelled all existing notifications for rescheduling');
 
+        // 2. Ensure channels exist before scheduling
+        if (Platform.OS === 'android') {
+            try {
+                await notifee.createChannel({
+                    id: 'adhan',
+                    name: 'Adhan Notifications',
+                    importance: AndroidImportance.HIGH,
+                    sound: 'adhan',
+                    vibration: true,
+                    badge: true,
+                });
+                await notifee.createChannel({
+                    id: 'default',
+                    name: 'Default',
+                    importance: AndroidImportance.DEFAULT,
+                    sound: 'default',
+                });
+            } catch (channelError: any) {
+                logger.error('Failed to create notification channels', {
+                    error: channelError?.message || String(channelError),
+                });
+            }
+        }
+
         const state = useStore.getState();
-        const { location, calculationMethod, asrMethod, highLatitudeRule, playAdhan, notifications } = state;
+        const { location, calculationMethod, asrMethod, highLatitudeRule, playAdhan, notifications, preAlarms } = state;
 
         if (!location) {
             logger.warn('Cannot schedule notifications: No location');
@@ -271,49 +295,124 @@ export async function scheduleDailyNotifications() {
 
                 const TIMEOUT_MS = 300000; // 5 minutes adhan timeout
 
-                await notifee.createTriggerNotification(
-                    {
-                        id: notificationId,
-                        title: t('prayerTimes'),
-                        body: `${t('itsTimeFor')} ${localizedName}`,
-                        data: { prayerName: name, date: dateStr },
-                        android: {
-                            channelId,
-                            asForegroundService: playAdhan,
-                            asAlarm: true, // Specific requirement for high-priority triggers
-                            ongoing: playAdhan,
-                            loopSound: false,
-                            timeoutAfter: playAdhan ? TIMEOUT_MS : undefined,
-                            category: AndroidCategory.ALARM,
-                            pressAction: {
-                                id: 'default',
-                                launchActivity: 'default',
+                try {
+                    await notifee.createTriggerNotification(
+                        {
+                            id: notificationId,
+                            title: t('prayerTimes'),
+                            body: `${t('itsTimeFor')} ${localizedName}`,
+                            data: { prayerName: name, date: dateStr, playAdhan: playAdhan ? 'true' : 'false' },
+                            android: {
+                                channelId,
+                                // CRITICAL FIX: Don't use asForegroundService for trigger notifications
+                                // The foreground service will be started when notification is delivered
+                                // Using it here causes "ForegroundServiceDidNotStartInTimeException"
+                                asForegroundService: false,
+                                asAlarm: true, // Specific requirement for high-priority triggers
+                                ongoing: playAdhan,
+                                loopSound: false,
+                                timeoutAfter: playAdhan ? TIMEOUT_MS : undefined,
+                                category: AndroidCategory.ALARM,
+                                pressAction: {
+                                    id: 'default',
+                                    launchActivity: 'default',
+                                },
+                                actions: [
+                                    {
+                                        title: t('success'),
+                                        pressAction: { id: 'MARK_PRAYED' },
+                                    },
+                                    {
+                                        title: t('silence'),
+                                        pressAction: { id: 'STOP_ADHAN' },
+                                    }
+                                ],
+                                sound: playAdhan ? 'adhan' : 'default',
                             },
-                            actions: [
+                            ios: {
+                                categoryId: 'prayer',
+                                sound: playAdhan ? 'adhan.wav' : 'default',
+                            },
+                        },
+                        trigger,
+                    );
+                    scheduledCount.triggers++;
+                } catch (notificationError: any) {
+                    logger.error(`Failed to schedule notification for ${name} on ${dateStr}`, {
+                        error: notificationError?.message || String(notificationError),
+                        notificationId,
+                        prayerTime: prayerTime.toISOString(),
+                    });
+                    // Continue with other notifications even if one fails
+                }
+
+                // Schedule pre-alarm if configured
+                const preAlarmMinutes = preAlarms[name] || 0;
+                if (preAlarmMinutes > 0) {
+                    const preAlarmTime = new Date(prayerTime.getTime() - (preAlarmMinutes * 60 * 1000));
+                    if (preAlarmTime.getTime() > now.getTime()) {
+                        const preAlarmId = `prealarm_${name}_${dateStr}`;
+                        const preAlarmMessage = name === 'fajr' 
+                            ? `${preAlarmMinutes} dakika sonra İmsak (Sahur için hazırlanın)`
+                            : name === 'maghrib'
+                            ? `${preAlarmMinutes} dakika sonra Akşam (İftar için hazırlanın)`
+                            : `${preAlarmMinutes} dakika sonra ${localizedName}`;
+
+                        try {
+                            await notifee.createTriggerNotification(
                                 {
-                                    title: t('success'),
-                                    pressAction: { id: 'MARK_PRAYED' },
+                                    id: preAlarmId,
+                                    title: t('prayerTimes'),
+                                    body: preAlarmMessage,
+                                    data: { prayerName: name, date: dateStr, isPreAlarm: true },
+                                    android: {
+                                        channelId: 'default',
+                                        importance: AndroidImportance.HIGH,
+                                        category: AndroidCategory.ALARM, // Changed from REMINDER to ALARM for more alarm-like behavior
+                                        asAlarm: true, // Mark as alarm for better system integration
+                                        pressAction: {
+                                            id: 'default',
+                                            launchActivity: 'default',
+                                        },
+                                        sound: 'default',
+                                        vibration: true, // Add vibration for better alarm feel
+                                        alarmManager: {
+                                            allowWhileIdle: true,
+                                        },
+                                    },
+                                    ios: {
+                                        categoryId: 'prayer', // Use prayer category for consistency
+                                        sound: 'default',
+                                        interruptionLevel: 'timeSensitive', // iOS 15+ for more prominent alerts
+                                    },
                                 },
                                 {
-                                    title: t('silence'),
-                                    pressAction: { id: 'STOP_ADHAN' },
-                                }
-                            ],
-                            sound: playAdhan ? 'adhan' : 'default',
-                        },
-                        ios: {
-                            categoryId: 'prayer',
-                            sound: playAdhan ? 'adhan.wav' : 'default',
-                        },
-                    },
-                    trigger,
-                );
-                scheduledCount.triggers++;
+                                    type: TriggerType.TIMESTAMP,
+                                    timestamp: preAlarmTime.getTime(),
+                                    alarmManager: {
+                                        allowWhileIdle: true,
+                                    },
+                                },
+                            );
+                            scheduledCount.triggers++;
+                        } catch (preAlarmError: any) {
+                            logger.error(`Failed to schedule pre-alarm for ${name} on ${dateStr}`, {
+                                error: preAlarmError?.message || String(preAlarmError),
+                                preAlarmId,
+                            });
+                            // Continue with other notifications even if pre-alarm fails
+                        }
+                    }
+                }
             }
         }
         logger.info(`Successfully scheduled ${scheduledCount.triggers} notifications for the next 7 days`);
-    } catch (e) {
-        logger.error('Failed to schedule daily notifications', e);
+    } catch (e: any) {
+        logger.error('Failed to schedule daily notifications', {
+            error: e?.message || String(e),
+            stack: e?.stack,
+            name: e?.name,
+        });
     }
 }
 

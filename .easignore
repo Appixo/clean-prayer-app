@@ -1,0 +1,90 @@
+# Dependencies (EAS installs these automatically)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Build artifacts
+*.apk
+*.aab
+*.ipa
+build/
+android/app/build/
+ios/build/
+
+# Testing
+__tests__/
+.maestro/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.ts
+jest.config.js
+jest.setup.js
+test_output.txt
+scripts/
+
+# Documentation
+docs/
+README-MAESTRO.md
+*.md
+!README.md
+
+# Development scripts and tools
+check_*.js
+clear-app-data.*
+dismiss-dev-menu.ps1
+run-maestro-test.ps1
+verify_formatting.js
+widget-task-handler.js
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Log files
+*.log
+*.txt
+!package.json
+!tsconfig.json
+final_*.txt
+utrecht_data.txt
+
+# Test artifacts
+view_*.xml
+*.xml
+!app.json
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Environment files
+.env*.local
+.env
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Native folders (generated)
+ios/
+android/
+
+# Maestro test results
+.maestro/tests/
+
+# Temporary files
+*.tmp
+*.temp
+build_info.json

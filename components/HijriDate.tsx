@@ -48,15 +48,21 @@ export function HijriDate({ date, onDateChange, onReset }: HijriDateProps) {
 
   return (
     <View
-      style={{ backgroundColor: isDark ? '#1f2937' : '#f3f4f6' }}
-      className="p-3 rounded-xl mb-3 flex-row items-center justify-between"
+      style={{ 
+        backgroundColor: isDark ? '#1f2937' : '#f3f4f6',
+        padding: 8,
+        borderRadius: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between'
+      }}
     >
       <TouchableOpacity
         onPress={() => adjustDate(-1)}
         className="p-2"
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <ChevronLeft size={20} color="#3b82f6" />
+        <ChevronLeft size={20} color="#2563EB" />
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -68,11 +74,11 @@ export function HijriDate({ date, onDateChange, onReset }: HijriDateProps) {
           {gregorianDate}
         </Text>
         <View className="flex-row items-center mt-0.5">
-          <Text className="text-gray-600 dark:text-gray-400 text-center text-[10px] font-medium mr-2">
+          <Text className="text-slate-500 dark:text-gray-400 text-center text-[10px] font-medium mr-2">
             {hijri.formatted}
           </Text>
           {dateLabel && (
-            <Text className="text-blue-500 dark:text-blue-400 text-center text-[10px] font-semibold uppercase tracking-tighter">
+            <Text className="text-blue-600 dark:text-blue-400 text-center text-[10px] font-black uppercase tracking-widest">
               {dateLabel}
             </Text>
           )}
@@ -84,7 +90,7 @@ export function HijriDate({ date, onDateChange, onReset }: HijriDateProps) {
         className="p-2"
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <ChevronRight size={20} color="#3b82f6" />
+        <ChevronRight size={20} color="#2563EB" />
       </TouchableOpacity>
     </View>
   );

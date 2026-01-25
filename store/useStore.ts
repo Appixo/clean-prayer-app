@@ -3,39 +3,10 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { Platform } from 'react-native';
 import * as Localization from 'expo-localization';
 import type { CalculationMethod, AsrMethod, HighLatitudeRule, TimeFormat, Theme, Coordinates, SavedLocation } from '../types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { updateWidgetData, persistWidgetConfigCache } from '../lib/widget-bridge';
 
-// MMKV Adapter for Zustand - Lazy loaded to prevent crashes on Web
-const getStorage = () => {
-    if (Platform.OS === 'web') {
-        return typeof localStorage !== 'undefined' ? localStorage : {
-            getItem: () => null,
-            setItem: () => { },
-            removeItem: () => { },
-        };
-    }
-
-    try {
-        const { MMKV } = require('react-native-mmkv');
-        const storage = new MMKV();
-        return {
-            setItem: (name: string, value: string) => storage.set(name, value),
-            getItem: (name: string) => storage.getString(name) ?? null,
-            removeItem: (name: string) => storage.delete(name),
-        };
-    } catch (e) {
-        // Suppress noisy error if native module is missing (e.g. on wrong client)
-        // console.error('MMKV not available, falling back to basic storage', e); // Original line, if it existed
-        // Assuming 'logger' is defined elsewhere or intended to be a simple console.warn
-        console.warn('MMKV not available, falling back to basic storage', e);
-        return {
-            setItem: () => { },
-            getItem: () => null,
-            removeItem: () => { },
-        };
-    }
-};
-
-// Interface
+// Middleware for persistence
 interface AppState {
     // Location
     location: Coordinates | null;
@@ -53,18 +24,22 @@ interface AppState {
     timeFormat: TimeFormat;
     theme: Theme;
     language: string;
-    viewLevel: 1 | 2 | 3;
+    viewMode: 'basit' | 'standart' | 'gelismis';
 
     // Notifications
     notifications: Record<string, boolean>; // prayerName -> enabled
     playAdhan: boolean;
     isAdhanPlaying: boolean;
+    preAlarms: Record<string, number>; // prayerName -> minutes before (0 = disabled)
 
     // Cache (YYYY-MM-DD -> { prayer: ISOString })
     prayerTimesCache: Record<string, Record<string, string>>;
 
     // Prayer Log (YYYY-MM-DD_prayerName -> boolean)
     prayerLog: Record<string, boolean>;
+
+    // Zikirmatik History (YYYY-MM-DD -> count)
+    zikirmatikHistory: Record<string, number>;
 
     // Actions
     setLocation: (loc: Coordinates, city?: string, country?: string, timezone?: string, isManual?: boolean) => void;
@@ -80,9 +55,12 @@ interface AppState {
     toggleNotification: (prayerName: string, enabled: boolean) => void;
     setPlayAdhan: (enabled: boolean) => void;
     setAdhanPlaying: (playing: boolean) => void;
+    setPreAlarm: (prayerName: string, minutes: number) => void; // 0 = disabled
     updatePrayerTimesCache: (cache: Record<string, Record<string, string>>) => void;
     togglePrayerPerformed: (date: string, prayerName: string) => void;
-    setViewLevel: (level: 1 | 2 | 3) => void;
+    setViewMode: (mode: 'basit' | 'standart' | 'gelismis') => void;
+    updateZikirmatikHistory: (date: string, count: number) => void;
+    resetStore: () => void;
 }
 
 const detectSystemLanguage = (): string => {
@@ -114,7 +92,7 @@ export const useStore = create<AppState>()(
             timeFormat: '24h',
             theme: 'system',
             language: 'tr',
-            viewLevel: 2,
+            viewMode: 'standart',
 
             notifications: {
                 fajr: false,
@@ -126,17 +104,32 @@ export const useStore = create<AppState>()(
             },
             playAdhan: false,
             isAdhanPlaying: false,
+            preAlarms: {
+                fajr: 0,
+                sunrise: 0,
+                dhuhr: 0,
+                asr: 0,
+                maghrib: 0,
+                isha: 0,
+            },
             prayerTimesCache: {},
             prayerLog: {},
+            zikirmatikHistory: {},
 
             // Actions
-            setLocation: (loc, city, country, timezone, isManual) => set({
-                location: loc,
-                city: city || null,
-                country: country || null,
-                timezone: timezone || null,
-                isManualLocation: isManual ?? false
-            }),
+            setLocation: (loc, city, country, timezone, isManual) => {
+                set({
+                    location: loc,
+                    city: city || null,
+                    country: country || null,
+                    timezone: timezone || null,
+                    isManualLocation: isManual ?? false
+                });
+                if (Platform.OS === 'android' && loc && city) {
+                    persistWidgetConfigCache().catch(() => {});
+                    updateWidgetData().catch(() => {});
+                }
+            },
             addSavedLocation: (loc) => set((state) => ({
                 savedLocations: [...state.savedLocations, loc]
             })),
@@ -171,30 +164,49 @@ export const useStore = create<AppState>()(
                     isManualLocation: true
                 };
             }),
-            selectLocation: (id) => set((state) => {
+            selectLocation: (id) => {
+                const state = useStore.getState();
                 const found = state.savedLocations.find(l => l.id === id);
                 if (found) {
-                    return {
+                    set({
                         selectedLocationId: id,
                         location: { latitude: found.latitude, longitude: found.longitude },
                         city: found.city,
                         country: found.country,
                         isManualLocation: true
-                    };
+                    });
+                    if (Platform.OS === 'android') {
+                        persistWidgetConfigCache().catch(() => {});
+                        updateWidgetData().catch(() => {});
+                    }
                 }
-                return state;
-            }),
-            setCalculationMethod: (method) => set({ calculationMethod: method }),
-            setAsrMethod: (method) => set({ asrMethod: method }),
-            setHighLatitudeRule: (rule) => set({ highLatitudeRule: rule }),
+            },
+            setCalculationMethod: (method) => {
+                set({ calculationMethod: method });
+                if (Platform.OS === 'android') updateWidgetData().catch(() => {});
+            },
+            setAsrMethod: (method) => {
+                set({ asrMethod: method });
+                if (Platform.OS === 'android') updateWidgetData().catch(() => {});
+            },
+            setHighLatitudeRule: (rule) => {
+                set({ highLatitudeRule: rule });
+                if (Platform.OS === 'android') updateWidgetData().catch(() => {});
+            },
             setTimeFormat: (format) => set({ timeFormat: format }),
-            setTheme: (theme) => set({ theme }),
+            setTheme: (theme) => {
+                set({ theme });
+                if (Platform.OS === 'android') updateWidgetData().catch(() => {});
+            },
             setLanguage: (language) => set({ language }),
             toggleNotification: (prayerName, enabled) => set((state) => ({
                 notifications: { ...state.notifications, [prayerName]: enabled }
             })),
             setPlayAdhan: (enabled) => set({ playAdhan: enabled }),
             setAdhanPlaying: (playing) => set({ isAdhanPlaying: playing }),
+            setPreAlarm: (prayerName, minutes) => set((state) => ({
+                preAlarms: { ...state.preAlarms, [prayerName]: minutes }
+            })),
             updatePrayerTimesCache: (cache) => set((state) => ({
                 prayerTimesCache: { ...state.prayerTimesCache, ...cache }
             })),
@@ -204,11 +216,43 @@ export const useStore = create<AppState>()(
                     prayerLog: { ...state.prayerLog, [key]: !state.prayerLog[key] }
                 };
             }),
-            setViewLevel: (level) => set({ viewLevel: level }),
+            setViewMode: (mode) => set({ viewMode: mode }),
+            updateZikirmatikHistory: (date, count) => set((state) => ({
+                zikirmatikHistory: { ...state.zikirmatikHistory, [date]: count }
+            })),
+            resetStore: () => set({
+                location: null,
+                city: null,
+                country: null,
+                timezone: null,
+                isManualLocation: false,
+                savedLocations: [],
+                selectedLocationId: null,
+                calculationMethod: 'Turkey',
+                asrMethod: 'Standard',
+                highLatitudeRule: 'MiddleOfTheNight',
+                timeFormat: '24h',
+                theme: 'system',
+                language: 'tr',
+                viewMode: 'standart',
+                notifications: {
+                    fajr: false,
+                    sunrise: false,
+                    dhuhr: false,
+                    asr: false,
+                    maghrib: false,
+                    isha: false,
+                },
+                playAdhan: false,
+                isAdhanPlaying: false,
+                prayerTimesCache: {},
+                prayerLog: {},
+                zikirmatikHistory: {},
+            }),
         }),
         {
             name: 'app-storage',
-            storage: createJSONStorage(() => getStorage()),
+            storage: createJSONStorage(() => AsyncStorage), // Use AsyncStorage instead of MMKV to prevent crashes
             partialize: (state) => {
                 const { isAdhanPlaying, ...rest } = state;
                 return rest;

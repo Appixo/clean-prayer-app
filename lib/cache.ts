@@ -1,5 +1,7 @@
+import { Platform } from 'react-native';
 import { useStore } from '../store/useStore';
 import { calculatePrayerTimes } from './prayer';
+import { updateWidgetData } from './widget-bridge';
 
 export function updatePrayerTimesCache() {
     const state = useStore.getState();
@@ -16,7 +18,7 @@ export function updatePrayerTimesCache() {
         const dateKey = date.toISOString().split('T')[0];
 
         const times = calculatePrayerTimes(
-            location.coordinates,
+            location,
             calculationMethod,
             asrMethod,
             highLatitudeRule,
@@ -36,4 +38,9 @@ export function updatePrayerTimesCache() {
 
     state.updatePrayerTimesCache(cache);
     console.log('Prayer times cache updated for 30 days');
+    
+    // Update widget when cache is updated (especially important for midnight updates)
+    if (Platform.OS === 'android') {
+        updateWidgetData().catch(() => {}); // Fire and forget
+    }
 }

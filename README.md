@@ -39,6 +39,66 @@ This project is built with Expo. To run it locally:
     npx expo start
     ```
 
+## 🧪 Testing
+
+The project uses a **Test Pyramid**: ~80% unit/integration (Jest + React Native Testing Library) and ~20% E2E (Maestro).
+
+### Unit & integration tests (Jest + RNTL)
+
+- **Run all unit tests**
+  ```bash
+  npm test
+  ```
+  or
+  ```bash
+  npm run test:unit
+  ```
+
+- **Watch mode** (re-run on file changes)
+  ```bash
+  npm run test:watch
+  ```
+
+- **Coverage report**
+  ```bash
+  npm run test:coverage
+  ```
+
+Tests live in `__tests__/`. The setup is in `jest.setup.ts` (mocks for NativeWind, Expo Router, native modules). There are no console warnings from NativeWind or Reanimated when tests pass.
+
+### E2E tests (Maestro)
+
+Maestro is used for flow tests on Android (New Architecture–friendly). The flow covers: **app launch**, **system location/permission dialogs**, **home screen**, and **navigation to Settings → About**.
+
+**Prerequisites**
+
+1. Android emulator or physical device connected
+2. Metro running: `npx expo start` (wait until it’s ready)
+3. App installed: `npx expo run:android`
+4. App data cleared (for a “fresh install” run):  
+   `adb shell pm clear com.namazvakitleri.family`
+
+**Run Maestro locally**
+
+- With Maestro CLI installed:
+  ```bash
+  maestro test .maestro/smoke-test.yaml
+  ```
+  or the full flow:
+  ```bash
+  maestro test .maestro/smoke_test.yaml
+  ```
+
+- Via npm script (if configured):
+  ```bash
+  npm run test:e2e
+  ```
+
+Flow files:
+
+- `.maestro/smoke-test.yaml` — Launch, permission, home, Settings, About
+- `.maestro/smoke_test.yaml` — Full onboarding + home + Settings + About
+
 ## 📸 Screenshots
 
 | Home (Light) | Search (Dark) | Settings |
