@@ -1,139 +1,53 @@
-# Maestro UI Testing Guide
+# Maestro E2E Testing (Flutter)
 
-This guide explains how to run automated UI tests using Maestro for the PrayerTime app.
+This guide explains how to run Maestro UI tests for the **Flutter** Namaz Vakitleri app.
 
-## Quick Start
+## Quick start
 
-### Option 1: Use the Automated Script (Recommended)
-
-Simply run:
-```powershell
-.\run-maestro-test.ps1
-```
-
-This script automatically:
-1. Checks for connected Android device
-2. Force stops the app
-3. Clears app data
-4. Checks if Metro bundler is running
-5. Runs the Maestro test
-
-### Option 2: Manual Steps
-
-If you prefer to run steps manually:
-
-1. **Ensure Metro bundler is running:**
-   ```powershell
-   npx expo start
+1. **Install and run the Flutter app** on an Android device or emulator:
+   ```bash
+   cd namaz_vakitleri_flutter
+   flutter pub get
+   flutter run
    ```
-   Wait until you see "Metro waiting on..."
+   Or install a release build: `flutter build apk` then install the APK.
 
-2. **Clear app data:**
-   ```powershell
-   .\clear-app-data.ps1
-   ```
-
-3. **Run the test:**
-   ```powershell
-   C:\Users\abdul\maestro\bin\maestro.bat test .maestro\smoke_test.yaml
+2. **Run Maestro** from the Flutter app directory:
+   ```bash
+   cd namaz_vakitleri_flutter
+   maestro test .maestro/smoke_test_flutter.yaml
    ```
 
 ## Prerequisites
 
-1. **Android Emulator or Physical Device**
-   - Must be running and connected
-   - Verify with: `adb devices`
+- **Android device or emulator** – connected and visible to `adb devices`
+- **App installed** – `com.namazvakitleri.family` (Flutter build)
+- **Maestro CLI** – [Install Maestro](https://maestro.mobile.dev/getting-started/installation)
 
-2. **Metro Bundler**
-   - Must be running before tests
-   - Start with: `npx expo start`
-   - Wait for "Metro waiting on..." message
+## Test flow
 
-3. **App Installed**
-   - App must be installed on the device
-   - Build with: `npx expo run:android`
+The smoke test (`.maestro/smoke_test_flutter.yaml`) covers:
 
-## Common Issues
+- Launch app (clear state optional)
+- Handle permission dialogs (e.g. Allow / İzin Ver)
+- Assert "Namaz Vakitleri" visible
+- Optional: assert prayer names (Fajr, Dhuhr, Maghrib) or Turkish labels
+- Navigate to Settings → About
 
-### App Doesn't Launch
+## Running from repo root
 
-**Symptoms:** Test fails immediately, app doesn't open
+From the repository root:
 
-**Solutions:**
-1. Ensure Metro bundler is running and ready
-2. Clear app data: `.\clear-app-data.ps1`
-3. Wait a few seconds after clearing before running test
-4. If using development build, ensure it's up to date: `npx expo run:android`
-
-### "App react context shouldn't be created before" Error
-
-**Cause:** Expo Dev Launcher issue when launching app programmatically
-
-**Solutions:**
-1. Fully stop the app: `adb shell am force-stop com.namazvakitleri.family`
-2. Clear app data: `adb shell pm clear com.namazvakitleri.family`
-3. Wait 2-3 seconds
-4. Ensure Metro is ready before launching
-5. Try rebuilding the app: `npx expo run:android`
-
-### Test Stuck on Developer Menu
-
-**Solution:** The test now automatically dismisses the developer menu. If it still gets stuck, the dialog text might have changed.
-
-### "Konumunuz" Not Found
-
-**Cause:** App data wasn't cleared, so onboarding was skipped
-
-**Solution:** Always clear app data before running tests:
-```powershell
-.\clear-app-data.ps1
+```bash
+cd namaz_vakitleri_flutter
+maestro test .maestro/smoke_test_flutter.yaml
 ```
 
-### "device offline" Exception at End
-
-**Symptoms:** Test completes successfully but shows `java.io.IOException: device offline` at the end
-
-**Explanation:** This is a cleanup/connection issue, not a test failure. Maestro loses connection to the device while closing the session.
-
-**Solution:** 
-- If all test steps show `+` (passed), the test succeeded
-- If this happens frequently, try:
-  1. Restart the emulator/device
-  2. Restart ADB: `adb kill-server && adb start-server`
-  3. Check device connection: `adb devices`
-
-## Test Flow
-
-The smoke test (`smoke_test.yaml`) tests the complete onboarding flow:
-
-1. **Launch App** - Starts the app fresh
-2. **Handle Dev Screens** - Dismisses Expo dev client screens
-3. **Location Setup** - Searches for "Utrecht" and selects it
-4. **View Mode** - Selects "Basit" (Simple) view
-5. **Notifications** - Proceeds through notification settings
-6. **Adhan Settings** - Completes Adhan configuration
-7. **Success Screen** - Verifies completion
-8. **Home Screen** - Verifies prayer times are displayed
-
-## Scripts
-
-- **`run-maestro-test.ps1`** - Comprehensive script that handles all prerequisites and runs the test
-- **`clear-app-data.ps1`** - Clears app data only
-- **`clear-app-data.bat`** - Batch version of clear script
-
-## Tips
-
-1. **Always use the script:** `.\run-maestro-test.ps1` handles everything automatically
-2. **Check Metro first:** Ensure Metro is running before tests
-3. **Rebuild if needed:** If app keeps crashing, rebuild: `npx expo run:android`
-4. **Check logs:** Maestro saves test results in `C:\Users\abdul\.maestro\tests\`
+Maestro must be run from `namaz_vakitleri_flutter` so the YAML path and app context are correct.
 
 ## Troubleshooting
 
-If tests consistently fail:
-
-1. Rebuild the app: `npx expo run:android`
-2. Clear app data: `.\clear-app-data.ps1`
-3. Restart Metro: Stop and restart `npx expo start`
-4. Check device: Ensure emulator/device is responsive
-5. Check Maestro logs: Look in `C:\Users\abdul\.maestro\tests\[timestamp]`
+- **App not found:** Ensure the Flutter app is installed (`flutter run` or install the APK). App ID: `com.namazvakitleri.family`.
+- **"device offline":** Restart ADB: `adb kill-server && adb start-server`. If all steps show passed, the run succeeded.
+- **Permission / onboarding:** For a clean run, clear app data first: `adb shell pm clear com.namazvakitleri.family`, then run the test.
+- **Logs:** Maestro saves results under `~/.maestro/tests/` (or your Maestro config path).

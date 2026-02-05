@@ -1,38 +1,28 @@
-# Hardened Release Checklist
+# Release Checklist (Flutter)
 
-## 1. Build Verification
-- [ ] Run `npx expo prebuild --clean`
-- [ ] Verify `android/app/src/main/res/raw/adhan.mp3` exists.
-- [ ] Verify `AndroidManifest.xml` contains:
-  - `FOREGROUND_SERVICE`
-  - `WAKE_LOCK`
-  - `SCHEDULE_EXACT_ALARM`
-  - `POST_NOTIFICATIONS`
+## 1. Build verification
 
-## 2. Testing Scenarios
+- [ ] From `namaz_vakitleri_flutter`: `flutter pub get` and `flutter clean` then `flutter pub get`
+- [ ] Verify `android/app/src/main/res/` and manifest contain required permissions (e.g. `FOREGROUND_SERVICE`, `WAKE_LOCK`, `POST_NOTIFICATIONS`, `SCHEDULE_EXACT_ALARM` if used).
+- [ ] Verify adhan audio asset exists (e.g. under `assets/audio/` and referenced in pubspec).
 
-### Audio Reliability
-- [ ] **Verification**: App running -> Simulate Prayer. Audio matches `adhan.mp3`?
-- [ ] **Auto-Dismiss**: Wait 5 minutes (timeoutAfter). Does notification vanish?
-- [ ] **Background**: Kill App -> Schedule -> Wait. Does it fire?
+## 2. Testing
 
-### Deep Sleep (Doze Mode)
-1. Schedule a prayer for +5 minutes.
-2. Force Doze: `adb shell dumpsys deviceidle force-idle`
-3. Screen off, wait.
-4. **Result**: Notification *must* fire at exact time, sound *must* play fully.
+- [ ] **Unit / widget:** `flutter test` (from `namaz_vakitleri_flutter`)
+- [ ] **E2E (optional):** Install app on device/emulator, then `maestro test .maestro/smoke_test_flutter.yaml` from `namaz_vakitleri_flutter`
 
-### Battery Impact
-- [ ] **Battery Saver**: Enable saver. Adhan should still play.
-- [ ] **Wake Lock**: Should be managed by Notifee (Foreground Service).
+### Audio / notifications (manual)
+
+- [ ] App running → trigger adhan (e.g. simulate prayer time). Audio plays?
+- [ ] Background: kill app, wait for scheduled time. Notification and audio fire?
+- [ ] Battery saver on: adhan still plays if supported.
 
 ## 3. Permissions
-- [ ] **Exact Alarm**: On Android 13+, confirm `SCHEDULE_EXACT_ALARM` is granted or requested. (May need manual toggle in Settings).
-- [ ] **Notifications**: `POST_NOTIFICATIONS` prompt.
 
-## 4. Edge Cases
-- [ ] **Reboot**: Device restart. (Notifee typically reschedules, but verify).
-- [ ] **Update**: App update preserves scheduling.
+- [ ] **Notifications:** `POST_NOTIFICATIONS` requested on Android 13+.
+- [ ] **Exact alarm (if used):** `SCHEDULE_EXACT_ALARM` or user-facing setting.
 
-## 5. Deployment
-- [ ] `npx expo run:android --configuration Release`
+## 4. Deployment
+
+- [ ] **Android:** `flutter build apk` or `flutter build appbundle` from `namaz_vakitleri_flutter`; sign with your keystore.
+- [ ] **Release run:** `flutter run --release` (or install built APK/AAB) and smoke-check.

@@ -1,0 +1,115 @@
+# Tier 3: Production-style E2E. Turkish onboarding -> Utrecht (de-duplicated) -> Toggle Adhan -> Dini Günler -> assert UI.
+# Run: maestro test .maestro/production_check.yaml (from namaz_vakitleri_flutter; app installed).
+appId: com.namazvakitleri.family.namaz_vakitleri_flutter
+---
+- launchApp:
+    clearState: true
+
+- startRecording: production_recording
+
+- runFlow:
+    when:
+      visible:
+        text: ".*Allow|İzin Ver|Grant.*"
+    commands:
+      - tapOn:
+          text: ".*Allow|İzin Ver|Grant.*"
+      - waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible: "Konumunuz"
+    timeout: 15000
+
+- assertVisible: "Konumunuz"
+
+- takeScreenshot: production_01_onboarding
+
+- tapOn:
+    id: "city_search_button"
+
+- waitForAnimationToEnd
+
+- extendedWaitUntil:
+    visible:
+      id: "city_search_description"
+    timeout: 5000
+
+- tapOn:
+    id: "city_search_input"
+
+- inputText: "Utrecht"
+
+- tapOn:
+    id: "city_search_submit"
+
+# Wait for at least one search result (fails if "Sonuç bulunamadı." / no results)
+- extendedWaitUntil:
+    visible:
+      id: "city_search_first_result"
+    timeout: 10000
+
+# Tap first result (Utrecht) - use id so we don't tap the search input text
+- tapOn:
+    id: "city_search_first_result"
+
+# Onboarding step 1: prayer selection - wait for step, select one prayer, continue
+- extendedWaitUntil:
+    visible:
+      id: "onboarding_prayer_step"
+    timeout: 10000
+
+- tapOn:
+    text: "Öğle"
+
+- tapOn:
+    id: "onboarding_prayer_continue"
+
+# Onboarding step 2: ezan - wait for step, tap Başla to finish
+- extendedWaitUntil:
+    visible:
+      id: "onboarding_ezan_step"
+    timeout: 10000
+
+- tapOn:
+    id: "onboarding_finish"
+
+# Home screen
+- extendedWaitUntil:
+    visible: "Namaz Vakitleri"
+    timeout: 15000
+
+- assertVisible: "Namaz Vakitleri"
+
+- takeScreenshot: production_02_home_utrecht
+
+- tapOn:
+    text: "Ayarlar"
+
+- extendedWaitUntil:
+    visible: "Ezan Sesi"
+    timeout: 10000
+
+- assertVisible: "Ezan Sesi"
+
+- takeScreenshot: production_03_settings
+
+- runFlow:
+    when:
+      visible: "Görünüm Modu"
+    commands:
+      - tapOn: "Gelişmiş"
+
+- tapOn:
+    text: "Dini Günler"
+
+- extendedWaitUntil:
+    visible: "Dini Günler"
+    timeout: 10000
+
+- assertVisible: "Dini Günler"
+
+- takeScreenshot: production_04_dini_gunler
+
+- assertVisible: "Diyanet"
+
+- stopRecording

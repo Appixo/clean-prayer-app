@@ -1,0 +1,29 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        
+        {
+            "name": "namaz_vakitleri_flutter",
+            "cwd": "namaz_vakitleri_flutter",
+            "request": "launch",
+            "type": "dart"
+        },
+        {
+            "name": "namaz_vakitleri_flutter (profile mode)",
+            "cwd": "namaz_vakitleri_flutter",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile"
+        },
+        {
+            "name": "namaz_vakitleri_flutter (release mode)",
+            "cwd": "namaz_vakitleri_flutter",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release"
+        }
+    ]
+}

@@ -1,0 +1,22 @@
+workflows:
+  flutter-workflow:
+    name: Flutter Build
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Get dependencies
+        script: flutter pub get
+      - name: Run tests
+        script: flutter test
+    artifacts:
+      - build/**/*.apk
+      - build/**/*.aab
+      - build/**/*.ipa
+    when:
+      branch:
+        include:
+          - main
+          - develop

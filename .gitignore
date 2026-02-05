@@ -1,15 +1,13 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
-node_modules/
+# macOS
+.DS_Store
+*.pem
 
-# Expo
-.expo/
-dist/
-web-build/
-expo-env.d.ts
+# local env files
+.env*.local
 
-# Native
+# Native / signing
 .kotlin/
 *.orig.*
 *.jks
@@ -18,28 +16,16 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
-# Metro
-.metro-health-check*
-
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# macOS
-.DS_Store
-*.pem
-
-# local env files
-.env*.local
-
-# typescript
-*.tsbuildinfo
-
-# generated native folders
-/ios
-/android
-
 # build outputs (too large for GitHub)
 *.apk
 *.aab
+
+# Flutter (when working from repo root)
+namaz_vakitleri_flutter/.dart_tool/
+namaz_vakitleri_flutter/build/
+namaz_vakitleri_flutter/.packages
+namaz_vakitleri_flutter/.flutter-plugins
+namaz_vakitleri_flutter/.flutter-plugins-dependencies
+
+# Maestro export artifacts (screenshots, logs) – local only
+maestro-exports/

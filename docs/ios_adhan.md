@@ -1,5 +1,7 @@
 # iOS Adhan Implementation Plan
 
+**Note:** The app is now built with **Flutter**. For Flutter-specific adhan and background audio setup (e.g. `just_audio`, `just_audio_background`), see [namaz_vakitleri_flutter/docs/adhan_platform.md](namaz_vakitleri_flutter/docs/adhan_platform.md) (if present) and the Flutter app’s Android/iOS configuration.
+
 ## Problem Statement
 iOS restricts background execution time to 30 seconds for standard notifications. Audio playback is killed when the app suspends. To support full Adhan playback (e.g., 3-5 minutes), we must use a **Notification Service Extension** or a **Background Audio Mode** workaround.
 
@@ -7,11 +9,11 @@ iOS restricts background execution time to 30 seconds for standard notifications
 A Notification Service Extension allows modifying the content of a remote (or local) notification before it is displayed. This is the standard way to attach rich media or handle decryption.
 However, extending playback time is better handled by:
 1.  **Notification Content Extension**: For custom UI.
-2.  **App Group**: Sharing data (MMKV) between App and Extension.
+2.  **App Group**: Sharing data between App and Extension.
 
 **Alternatively (Recommended for Playback):**
-Using `expo-av` with `UIBackgroundModes` -> `audio`.
-- **Constraint**: Apple Store requires "Audio" apps to be primary audio apps. A prayer app *playing adhan* counts, but we must ensure we setup the Audio Session correctly (`AVAudioSessionCategoryPlayback`).
+Using background audio mode (`UIBackgroundModes` -> `audio`). In Flutter this is typically configured via `just_audio` / `just_audio_background` and the iOS project’s Info.plist.
+- **Constraint**: Apple Store requires "Audio" apps to be primary audio apps. A prayer app *playing adhan* counts, but we must ensure the Audio Session is configured correctly (`AVAudioSessionCategoryPlayback`).
 
 ## Proposed Architecture (Mac Required)
 

@@ -1,0 +1,30 @@
+# Maestro E2E for Flutter app (platform & E2E only).
+# With clearState: true, app shows onboarding (Konumunuz). Smoke validates launch.
+# Use after: flutter run / install release APK with appId com.namazvakitleri.family.namaz_vakitleri_flutter
+# Run: maestro test .maestro/smoke_test_flutter.yaml
+appId: com.namazvakitleri.family.namaz_vakitleri_flutter
+---
+- launchApp:
+    clearState: true
+
+- startRecording: smoke_recording
+
+- runFlow:
+    when:
+      visible:
+        text: ".*Allow|İzin Ver|Grant.*"
+    commands:
+      - tapOn:
+          text: ".*Allow|İzin Ver|Grant.*"
+      - waitForAnimationToEnd
+
+# With clearState, app shows onboarding first (Konumunuz). Assert that.
+- extendedWaitUntil:
+    visible: "Konumunuz"
+    timeout: 15000
+
+- assertVisible: "Konumunuz"
+
+- takeScreenshot: smoke_01_onboarding
+
+- stopRecording
