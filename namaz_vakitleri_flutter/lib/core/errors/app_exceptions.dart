@@ -1,4 +1,5 @@
 /// App-wide exceptions. Extend when adding API or domain errors.
+library;
 
 class AppException implements Exception {
   AppException(this.message, {this.cause});

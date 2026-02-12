@@ -1,10 +1,11 @@
-import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:just_audio_background/just_audio_background.dart';
+import 'package:namaz_vakitleri_flutter/core/platform/adhan_foreground_task.dart';
 
-/// Adhan playback using [just_audio] with [just_audio_background] so playback
-/// continues when the app is in background (Android foreground service).
+/// Adhan playback using [just_audio]. On Android, a simple foreground-service
+/// notification (no media controls / no "Phone speaker") keeps playback in background.
 class AdhanPlaybackService {
   AdhanPlaybackService() {
     _player = AudioPlayer();
@@ -34,13 +35,16 @@ class AdhanPlaybackService {
     try {
       await _player.stop();
       await _player.seek(Duration.zero);
+      if (Platform.isAndroid) {
+        await FlutterForegroundTask.stopService();
+      }
     } catch (e) {
       if (kDebugMode) debugPrint('[AdhanPlayback] stop error: $e');
     }
   }
 
-  /// Plays the adhan asset. Uses [just_audio_background] so a media notification
-  /// is shown and playback continues in background (Android).
+  /// Plays the adhan asset. On Android, starts a foreground service with a simple
+  /// notification (title + "Durdur" only); no media-style controls (no seek/pause).
   /// [prayerName] is used for the notification title.
   Future<void> play({
     required String assetPath,
@@ -48,15 +52,19 @@ class AdhanPlaybackService {
   }) async {
     try {
       await stop();
+      if (Platform.isAndroid) {
+        await FlutterForegroundTask.startService(
+          serviceTypes: const [ForegroundServiceTypes.dataSync],
+          notificationTitle: '$prayerName Adhan',
+          notificationText: 'Namaz Vakitleri',
+          notificationButtons: const [
+            NotificationButton(id: kAdhanNotificationStopButtonId, text: 'Durdur'),
+          ],
+          callback: adhanForegroundTaskCallback,
+        );
+      }
       await _player.setAudioSource(
-        AudioSource.uri(
-          Uri.parse('asset:///$assetPath'),
-          tag: MediaItem(
-            id: 'adhan',
-            title: '$prayerName Adhan',
-            artist: 'Namaz Vakitleri',
-          ),
-        ),
+        AudioSource.uri(Uri.parse('asset:///$assetPath')),
       );
       await _player.play();
     } catch (e) {

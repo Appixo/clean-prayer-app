@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:intl/intl.dart';
+import 'package:namaz_vakitleri_flutter/core/constants/app_constants.dart';
 import 'package:namaz_vakitleri_flutter/core/utils/hijri_date.dart';
 import 'package:namaz_vakitleri_flutter/data/services/widget_service.dart';
 import 'package:namaz_vakitleri_flutter/domain/entities/calculation_params.dart';
@@ -85,12 +86,14 @@ class PrayerTimesBloc extends Bloc<PrayerTimesEvent, PrayerTimesState> {
     required AppSettings settingsState,
     required LocationState locationState,
   }) {
+    if (!AppConstants.enableWidgets) return;
     _widgetService.persistWidgetConfigCache(
       coordinates: coordinates,
       city: city,
       country: locationState is LocationStateLoaded ? locationState.country : null,
       calculationParams: settingsState.calculationParams,
       timeFormat: settingsState.timeFormat,
+      theme: settingsState.theme,
     );
     final dateStr = DateFormat.yMMMMd('tr').format(date);
     final hijriStr = formatHijriDate(date);

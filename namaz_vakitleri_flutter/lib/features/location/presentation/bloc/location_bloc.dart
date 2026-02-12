@@ -2,14 +2,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:namaz_vakitleri_flutter/domain/entities/coordinates.dart';
 import 'package:namaz_vakitleri_flutter/domain/entities/saved_location.dart';
-import 'package:namaz_vakitleri_flutter/domain/repositories/location_repository.dart';
 import 'package:namaz_vakitleri_flutter/domain/repositories/settings_repository.dart';
 
 part 'location_event.dart';
 part 'location_state.dart';
 
 class LocationBloc extends Bloc<LocationEvent, LocationState> {
-  LocationBloc(this._locationRepo, this._settingsRepo) : super(const LocationStateInitial()) {
+  LocationBloc(this._settingsRepo) : super(const LocationStateInitial()) {
     on<LocationRequested>(_onLocationRequested);
     on<LocationUpdated>(_onLocationUpdated);
     on<LocationSelected>(_onLocationSelected);
@@ -18,7 +17,6 @@ class LocationBloc extends Bloc<LocationEvent, LocationState> {
     on<LocationReloadFromRepoRequested>(_onLocationReloadFromRepoRequested);
   }
 
-  final LocationRepository _locationRepo;
   final SettingsRepository _settingsRepo;
 
   Future<void> _onLocationRequested(LocationRequested event, Emitter<LocationState> emit) async {
@@ -41,21 +39,9 @@ class LocationBloc extends Bloc<LocationEvent, LocationState> {
       return;
     }
 
-    emit(const LocationStateLoading());
-    final result = await _locationRepo.getCurrentLocation();
-    if (result == null) {
-      emit(LocationStateNoLocation(savedLocations: saved, selectedLocationId: selectedId));
-      return;
-    }
-    emit(LocationStateLoaded(
-      coordinates: result.coordinates,
-      city: result.city ?? 'Unknown',
-      country: result.country,
-      timezone: result.timezone,
-      savedLocations: saved,
-      selectedLocationId: selectedId,
-      isManual: false,
-    ));
+    // No selected location: show "pick a location" without requesting GPS.
+    // GPS is only used when the user explicitly taps "GPS ile Bul" in Settings or onboarding.
+    emit(LocationStateNoLocation(savedLocations: saved, selectedLocationId: selectedId));
   }
 
   void _onLocationUpdated(LocationUpdated event, Emitter<LocationState> emit) {

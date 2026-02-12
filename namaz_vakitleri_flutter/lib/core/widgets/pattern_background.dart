@@ -15,20 +15,23 @@ class PatternBackground extends StatelessWidget {
   /// Content drawn on top of the pattern.
   final Widget child;
 
-  /// Base opacity of the pattern (default 0.05). Pattern is then masked by a vertical fade.
+  /// Override pattern opacity. Pattern is masked by a vertical fade (strong at top, gone by center).
   final double? opacity;
 
   static const String _assetLight = 'assets/images/pattern-background-light.png';
   static const String _assetDark = 'assets/images/pattern-background-dark.png';
 
-  static const double _baseOpacity = 0.05;
+  /// Pattern opacity: light 0.15 (visible under header/date), dark 0.20. Scrim tuned so pattern pops in header area.
+  static const double _opacityLight = 0.15;
+  static const double _opacityDark = 0.20;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final asset = isDark ? _assetDark : _assetLight;
-    final effectiveOpacity = opacity ?? _baseOpacity;
+    final baseOpacity = isDark ? _opacityDark : _opacityLight;
+    final effectiveOpacity = opacity ?? baseOpacity;
 
     return Stack(
       fit: StackFit.expand,
@@ -37,7 +40,7 @@ class PatternBackground extends StatelessWidget {
         Container(
           color: theme.scaffoldBackgroundColor,
         ),
-        // Middle: pattern with 5% opacity and vertical gradient mask (visible at top, fade to 0 by center)
+        // Middle: pattern with theme opacity and vertical gradient mask (visible at top, fade to 0 by center)
         Positioned.fill(
           child: ShaderMask(
             blendMode: BlendMode.dstIn,
@@ -57,6 +60,29 @@ class PatternBackground extends StatelessWidget {
                     image: AssetImage(asset),
                     repeat: ImageRepeat.repeat,
                   ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        // Top-to-bottom scrim: light mode uses lower top alpha so pattern shows under header/date; fade ends before prayer list.
+        Positioned.fill(
+          child: IgnorePointer(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: isDark
+                      ? [
+                          theme.scaffoldBackgroundColor.withValues(alpha: 0.35),
+                          theme.scaffoldBackgroundColor.withValues(alpha: 0.0),
+                        ]
+                      : [
+                          theme.scaffoldBackgroundColor.withValues(alpha: 0.48),
+                          theme.scaffoldBackgroundColor.withValues(alpha: 0.0),
+                        ],
+                  stops: isDark ? const [0.0, 0.42] : const [0.0, 0.48],
                 ),
               ),
             ),

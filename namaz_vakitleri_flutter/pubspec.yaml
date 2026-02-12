@@ -38,16 +38,17 @@ dependencies:
   flutter_local_notifications: ^18.0.1
   workmanager: ^0.9.0
 
-  # Adhan playback (background-capable)
+  # Adhan playback (background-capable; simple notification only, no media controls)
   just_audio: ^0.9.40
-  just_audio_background: ^0.0.1-beta.14
+  flutter_foreground_task: ^9.2.0
 
   # Android home screen widgets
   home_widget: ^0.9.0
 
-  # Navigation
+  # Navigation & links
   go_router: ^14.6.2
   share_plus: ^10.1.3
+  url_launcher: ^6.3.0
 
   # Icons (Lucide for Expo parity)
   lucide_icons: ^0.257.0
@@ -67,6 +68,7 @@ dev_dependencies:
   mocktail: ^1.0.3
   flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.3
+  image: ^4.7.0
 
 flutter:
   uses-material-design: true
@@ -78,13 +80,16 @@ flutter:
     - assets/translations/
   fonts: []
 
-# App launcher icon: run "dart run flutter_launcher_icons" after adding a square icon.
-# Use logo.png (square, 1024x1024 recommended) or splash.png; then rebuild the app.
+# App launcher icon: run "dart run flutter_launcher_icons" after changing the icon.
+# Uses adaptive-icon.png (mosque); splash.png remains for native splash screen.
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/splash.png"
+  image_path: "assets/images/adaptive-icon.png"
   min_sdk_android: 21
+  remove_alpha_ios: true
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/adaptive-icon.png"
 
 # Native splash: run "dart run flutter_native_splash:create" to apply.
 # Uses splash.png as full-screen image; background color used when image is absent.

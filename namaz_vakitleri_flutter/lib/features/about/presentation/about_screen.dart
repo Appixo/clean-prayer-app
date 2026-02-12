@@ -1,9 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:namaz_vakitleri_flutter/core/constants/app_links.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
+
+  static Future<void> _openPrivacyPolicy(BuildContext context) async {
+    final uri = Uri.parse(AppLinks.privacyPolicy);
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched && context.mounted) {
+        _showCouldNotOpenLink(context);
+      }
+    } catch (_) {
+      if (context.mounted) _showCouldNotOpenLink(context);
+    }
+  }
+
+  static void _showCouldNotOpenLink(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Bağlantı açılamadı. Lütfen daha sonra tekrar deneyin.')),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,11 +37,11 @@ class AboutScreen extends StatelessWidget {
         ),
       ),
       body: SafeArea(
-        minimum: EdgeInsets.only(top: 24),
+        minimum: EdgeInsets.only(top: 8),
         child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
           24,
-          24,
+          12,
           24,
           24 + MediaQuery.of(context).viewPadding.bottom,
         ),
@@ -32,17 +52,19 @@ class AboutScreen extends StatelessWidget {
               child: Column(
                 children: [
                   Image.asset(
-                    'assets/images/splash.png',
-                    height: 56,
-                    width: 56,
+                    theme.brightness == Brightness.light
+                        ? 'assets/images/logo-default.png'
+                        : 'assets/images/logo-darkmode.png',
+                    height: 96,
+                    width: 96,
                     fit: BoxFit.contain,
                     errorBuilder: (_, __, ___) => Icon(
                       LucideIcons.compass,
-                      size: 56,
+                      size: 96,
                       color: theme.colorScheme.primary,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   Text(
                     'Namaz Vakitleri',
                     style: theme.textTheme.headlineSmall?.copyWith(
@@ -60,7 +82,7 @@ class AboutScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
             Text(
               'Uygulama Hakkında',
               style: theme.textTheme.titleMedium?.copyWith(
@@ -121,6 +143,23 @@ class AboutScreen extends StatelessWidget {
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurface,
                 height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Gizlilik',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: () => _openPrivacyPolicy(context),
+              borderRadius: BorderRadius.circular(8),
+              child: _AboutItem(
+                icon: LucideIcons.fileText,
+                text: 'Gizlilik politikamızı okumak için tıklayın.',
               ),
             ),
             const SizedBox(height: 32),

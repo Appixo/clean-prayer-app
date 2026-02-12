@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@color/widget_background">
+
+    <TextView
+        android:id="@+id/widget_schedule_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Namaz Vakitleri"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:textColor="@color/widget_primary_text" />
+
+    <TextView
+        android:id="@+id/widget_schedule_context"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="—"
+        android:textSize="11sp"
+        android:textColor="@color/widget_secondary_text" />
+
+    <TextView
+        android:id="@+id/widget_schedule_fajr"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="—"
+        android:textSize="12sp"
+        android:textColor="@color/widget_primary_text" />
+
+    <TextView
+        android:id="@+id/widget_schedule_sunrise"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="—"
+        android:textSize="12sp"
+        android:textColor="@color/widget_primary_text" />
+
+    <TextView
+        android:id="@+id/widget_schedule_dhuhr"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="—"
+        android:textSize="12sp"
+        android:textColor="@color/widget_primary_text" />
+
+    <TextView
+        android:id="@+id/widget_schedule_asr"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="—"
+        android:textSize="12sp"
+        android:textColor="@color/widget_primary_text" />
+
+    <TextView
+        android:id="@+id/widget_schedule_maghrib"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="—"
+        android:textSize="12sp"
+        android:textColor="@color/widget_primary_text" />
+
+    <TextView
+        android:id="@+id/widget_schedule_isha"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="—"
+        android:textSize="12sp"
+        android:textColor="@color/widget_primary_text" />
+</LinearLayout>

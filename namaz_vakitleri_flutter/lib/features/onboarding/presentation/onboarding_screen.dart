@@ -89,27 +89,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _search() async {
     if (_searchQuery.trim().length < 2) return;
+    final queryAtStart = _searchQuery.trim();
     setState(() {
       _searching = true;
       _searchError = null;
     });
     try {
-      final results = await getIt<LocationRepository>().searchCities(_searchQuery, language: 'tr');
-      if (mounted) {
-        setState(() {
-          _searchResults = results;
-          _searching = false;
-          _searchError = results.isEmpty ? 'Sonuç bulunamadı.' : null;
-        });
-      }
+      final results = await getIt<LocationRepository>().searchCities(queryAtStart, language: 'tr');
+      if (!mounted) return;
+      if (_searchQuery.trim() != queryAtStart) return;
+      setState(() {
+        _searchResults = results;
+        _searching = false;
+        _searchError = results.isEmpty ? 'Tam eşleşme bulunamadı. Daha fazla harf deneyin.' : null;
+      });
     } catch (_) {
-      if (mounted) {
-        setState(() {
-          _searchResults = [];
-          _searching = false;
-          _searchError = 'Bağlantı kurulamadı. İnternet bağlantınızı kontrol edin.';
-        });
-      }
+      if (!mounted) return;
+      if (_searchQuery.trim() != queryAtStart) return;
+      setState(() {
+        _searchResults = [];
+        _searching = false;
+        _searchError = 'Bağlantı kurulamadı. İnternet bağlantınızı kontrol edin.';
+      });
     }
   }
 
@@ -222,9 +223,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Widget _buildProgressIndicator(BuildContext context) {
     final theme = Theme.of(context);
-    // When no prayers selected, step 3 is skipped — show "2 / 2" so continuing feels like completion, not a jump.
-    final effectiveTotal =
-        (_step == 1 && _selectedPrayers.isEmpty) ? 2 : _totalSteps;
+    // When step 0 or when no prayers selected, Ezan step is skipped — show 2 steps so "1/2" and "2/2" feel consistent.
+    final effectiveTotal = (_step == 0 || (_step == 1 && _selectedPrayers.isEmpty))
+        ? 2
+        : _totalSteps;
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
@@ -614,11 +616,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => setState(() => _step = 0),
-                    child: const Text('Geri'),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
+                    child: const Text('Geri'),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -635,11 +637,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         if (!mounted) return;
                         setState(() => _step = 2);
                       },
-                      child: const Text('Devam Et'),
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
+                      child: const Text('Devam Et'),
                     ),
                   ),
                 ),
@@ -657,11 +659,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Expanded(
             child: OutlinedButton(
               onPressed: () => setState(() => _step = 1),
-              child: const Text('Geri'),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
+              child: const Text('Geri'),
             ),
           ),
           const SizedBox(width: 16),
@@ -670,11 +672,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               identifier: 'onboarding_finish',
               child: FilledButton(
                 onPressed: () => _finishWithSelections(),
-                child: const Text('Başla'),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
+                child: const Text('Başla'),
               ),
             ),
           ),
@@ -750,10 +752,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         onPressed: _searchQuery.trim().length >= 2 && !_searching
                             ? _search
                             : null,
-                        child: const Text('Ara'),
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                         ),
+                        child: const Text('Ara'),
                       ),
                     ),
                   ],
@@ -771,39 +773,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   ),
                 ),
               ],
-              const SizedBox(height: 20),
+              if (_searchResults.isNotEmpty && _searchResults.length > 3) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Daha fazla harf yazarak aramanızı daraltabilirsiniz.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              const SizedBox(height: 8),
               Expanded(
                 child: _searching
                     ? const Center(child: CircularProgressIndicator())
                     : _searchResults.isEmpty
                         ? _buildSearchEmptyState(context)
-                        : ListView.builder(
+                        : ListView(
                             padding: EdgeInsets.zero,
-                            itemCount: _searchResults.length,
-                            itemBuilder: (context, i) {
-                              final r = _searchResults[i];
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: Semantics(
-                                  identifier: i == 0
-                                      ? 'city_search_first_result'
-                                      : 'city_search_result_$i',
-                                  child: ListTile(
-                                    leading: Icon(
-                                      LucideIcons.mapPin,
-                                      color: colorScheme.primary,
-                                    ),
-                                    title: Text(r.city),
-                                    subtitle:
-                                        r.country != null ? Text(r.country!) : null,
-                                    onTap: () => _selectSearchResult(r),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
+                            children: _buildCitySearchResultList(context, colorScheme, theme),
                           ),
               ),
             ],
@@ -811,6 +799,130 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ),
       ),
     );
+  }
+
+  /// Only show "En iyi eşleşme" when the first result's city *starts with* the query (prefix match).
+  List<Widget> _buildCitySearchResultList(
+    BuildContext context,
+    ColorScheme colorScheme,
+    ThemeData theme,
+  ) {
+    final q = _searchQuery.trim().toLowerCase();
+    final hasStrongMatch = q.isNotEmpty &&
+        _searchResults.isNotEmpty &&
+        _searchResults.first.city.toLowerCase().trim().startsWith(q) &&
+        _searchResults.first.placeType == PlaceType.city;
+    final children = <Widget>[];
+    if (hasStrongMatch && _searchResults.isNotEmpty) {
+      children.add(
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 6),
+          child: Text(
+            'En iyi eşleşme',
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: colorScheme.primary,
+            ),
+          ),
+        ),
+      );
+      children.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Semantics(
+            identifier: 'city_search_first_result',
+            child: ListTile(
+              leading: Icon(
+                LucideIcons.mapPin,
+                size: 20,
+                color: colorScheme.onSurfaceVariant,
+              ),
+              title: Text(
+                _searchResults.first.city,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: _searchResults.first.country != null
+                  ? Text(
+                      _searchResults.first.country!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    )
+                  : null,
+              onTap: () => _selectSearchResult(_searchResults.first),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    // Exclude any result with same city+country as best match so we never show duplicate (e.g. two Nominatim hits for Utrecht).
+    final first = _searchResults.first;
+    final others = hasStrongMatch
+        ? _searchResults
+            .where((r) =>
+                r.city.toLowerCase().trim() != first.city.toLowerCase().trim() ||
+                (r.country ?? '').toLowerCase() != (first.country ?? '').toLowerCase())
+            .toList()
+        : _searchResults;
+    if (others.isNotEmpty) {
+      if (children.isNotEmpty) children.add(const SizedBox(height: 8));
+      children.add(
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 6),
+          child: Text(
+            'Diğer sonuçlar',
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+      for (var i = 0; i < others.length; i++) {
+        final r = others[i];
+        children.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Semantics(
+              identifier: i == 0 && !hasStrongMatch
+                  ? 'city_search_first_result'
+                  : 'city_search_result_$i',
+              child: ListTile(
+                leading: Icon(
+                  LucideIcons.mapPin,
+                  size: 20,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                title: Text(
+                  r.city,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: r.country != null
+                    ? Text(
+                        r.country!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      )
+                    : null,
+                onTap: () => _selectSearchResult(r),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+    }
+    return children;
   }
 
   Widget _buildSearchEmptyState(BuildContext context) {

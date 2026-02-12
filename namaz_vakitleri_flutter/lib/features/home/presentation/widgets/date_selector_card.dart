@@ -36,28 +36,24 @@ class DateSelectorCard extends StatelessWidget {
     final hijriStr = formatHijriDate(date);
     final dateLabel = _dateLabel(date, now);
 
+    final isDark = theme.brightness == Brightness.dark;
     final padding = isCompact
-        ? const EdgeInsets.symmetric(horizontal: 8, vertical: 6)
+        ? const EdgeInsets.symmetric(horizontal: 8, vertical: 4)
         : EdgeInsets.symmetric(
             horizontal: AppConstants.cardPaddingHorizontal,
-            vertical: AppConstants.cardPaddingVertical,
+            vertical: isDark ? 6 : 8,
           );
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            theme.colorScheme.surfaceContainerHighest,
-            theme.colorScheme.surfaceContainerHighest.withOpacity(0.85),
-          ],
-        ),
+        color: isDark
+            ? theme.colorScheme.surface.withValues(alpha: 0.55)
+            : theme.colorScheme.surface.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(AppConstants.cardRadius),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(isDark ? 0.08 : 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
           ),
         ],
       ),
@@ -77,7 +73,7 @@ class DateSelectorCard extends StatelessWidget {
                 onTap: () => onDateChanged(DateTime.now()),
                 borderRadius: BorderRadius.circular(AppConstants.cardRadius),
                 child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: isCompact ? 4 : 8),
+                  padding: EdgeInsets.symmetric(vertical: isCompact ? 2 : 4),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -90,14 +86,14 @@ class DateSelectorCard extends StatelessWidget {
                                   : theme.textTheme.titleSmall)
                               ?.copyWith(
                             fontWeight: FontWeight.w500,
-                            color: theme.colorScheme.onSurface,
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                           textAlign: TextAlign.center,
                           maxLines: 1,
                         ),
                       ),
                       if (hijriStr.isNotEmpty) ...[
-                        SizedBox(height: isCompact ? 2 : 4),
+                        SizedBox(height: isCompact ? 2 : 3),
                         Text(
                           hijriStr,
                           style: theme.textTheme.bodySmall?.copyWith(
@@ -106,14 +102,14 @@ class DateSelectorCard extends StatelessWidget {
                           textAlign: TextAlign.center,
                         ),
                       ],
-                      SizedBox(height: isCompact ? 4 : 8),
+                      SizedBox(height: isCompact ? 2 : 4),
                       Text(
                         dateLabel,
-                        style: theme.textTheme.labelMedium?.copyWith(
+                        style: theme.textTheme.labelSmall?.copyWith(
                           color: isToday
                               ? theme.colorScheme.primary
                               : theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],

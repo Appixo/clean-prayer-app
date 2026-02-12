@@ -51,7 +51,7 @@ class AppTheme {
       textTheme: _textTheme(colorScheme),
       scaffoldBackgroundColor: _scaffoldLight,
       appBarTheme: AppBarTheme(
-        centerTitle: true,
+        centerTitle: false,
         elevation: 0,
         backgroundColor: _scaffoldLight,
         foregroundColor: colorScheme.primary,
@@ -139,7 +139,7 @@ class AppTheme {
       textTheme: darkTextTheme,
       scaffoldBackgroundColor: scaffoldDark,
       appBarTheme: const AppBarTheme(
-        centerTitle: true,
+        centerTitle: false,
         elevation: 0,
         backgroundColor: scaffoldDark,
         foregroundColor: darkPrimary,

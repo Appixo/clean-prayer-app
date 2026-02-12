@@ -55,10 +55,7 @@ Future<void> initDependencies() async {
   );
 
   getIt.registerLazySingleton<LocationBloc>(
-    () => LocationBloc(
-      getIt<LocationRepository>(),
-      getIt<SettingsRepository>(),
-    ),
+    () => LocationBloc(getIt<SettingsRepository>()),
   );
   getIt.registerLazySingleton<SettingsBloc>(
     () => SettingsBloc(getIt<SettingsRepository>())

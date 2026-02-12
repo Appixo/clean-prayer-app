@@ -70,13 +70,13 @@ class PrayerTimeCard extends StatelessWidget {
         final completedTextColor = theme.colorScheme.onSurfaceVariant;
         final nameStyle = isVerySmall
             ? theme.textTheme.labelLarge
-            : (isCompact ? theme.textTheme.titleSmall : theme.textTheme.titleMedium);
+            : (isCompact ? theme.textTheme.titleSmall : theme.textTheme.titleLarge);
         final timeStyle = isVerySmall
             ? theme.textTheme.labelLarge
-            : (isCompact ? theme.textTheme.titleSmall : theme.textTheme.titleMedium);
+            : (isCompact ? theme.textTheme.titleSmall : theme.textTheme.titleLarge);
         final decoration = isHighlighted
             ? BoxDecoration(
-                color: bgColor,
+                color: theme.colorScheme.primary.withOpacity(0.06),
                 borderRadius: BorderRadius.circular(AppConstants.cardRadius),
                 border: Border(
                   left: BorderSide(
@@ -100,10 +100,10 @@ class PrayerTimeCard extends StatelessWidget {
               );
 
         return Container(
-          margin: EdgeInsets.symmetric(vertical: isVerySmall ? 1 : (isCompact ? 3 : 5)),
+          margin: EdgeInsets.symmetric(vertical: isVerySmall ? 1 : (isCompact ? 2 : 5)),
           padding: EdgeInsets.symmetric(
-            horizontal: isVerySmall ? 8 : (isCompact ? 10 : 12),
-            vertical: isVerySmall ? 6 : (isCompact ? 9 : 14),
+            horizontal: isVerySmall ? 8 : (isCompact ? 10 : 14),
+            vertical: isVerySmall ? 4 : (isCompact ? 6 : 12),
           ),
           decoration: decoration,
           child: Row(

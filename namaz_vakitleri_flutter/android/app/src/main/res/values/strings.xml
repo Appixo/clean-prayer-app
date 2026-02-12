@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Widget picker: main prayer times widget -->
+    <string name="widget_title_prayer_times">Namaz Vakitleri</string>
+    <string name="widget_description_prayer_times">Sonraki namaz vaktini ve konumu gösterir</string>
+
+    <!-- Widget picker: countdown widget -->
+    <string name="widget_title_countdown">Namaz geri sayım</string>
+    <string name="widget_description_countdown">Sonraki namaza kalan süreyi gösterir</string>
+
+    <!-- Widget picker: schedule (day) widget -->
+    <string name="widget_title_schedule">Namaz vakitleri (gün)</string>
+    <string name="widget_description_schedule">Günlük namaz vakitleri listesini gösterir</string>
+</resources>

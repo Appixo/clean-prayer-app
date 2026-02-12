@@ -1,4 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="splash_background">#FF1e3a8a</color>
+    <!-- Brand primary for widget preview (no Flutter logo) -->
+    <color name="widget_preview_tint">#FF276ddf</color>
+
+    <!-- Widget theme (light): same spacing/typography as layout-night -->
+    <color name="widget_background">#FFF8FAFC</color>
+    <color name="widget_title_text">#FF64748B</color>
+    <color name="widget_primary_text">#FF0F172A</color>
+    <color name="widget_secondary_text">#FF64748B</color>
+	<color name="ic_launcher_background">#FFFFFF</color>
 </resources>

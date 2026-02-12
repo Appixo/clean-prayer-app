@@ -55,31 +55,31 @@ class ReligiousDaysScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: SafeArea(
-        minimum: EdgeInsets.only(top: 24),
-        child: CustomScrollView(
-          slivers: [
+      body: CustomScrollView(
+        slivers: [
+            SliverAppBar(
+              pinned: false,
+              floating: false,
+              centerTitle: true,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              title: Text(
+                'Dini Günler',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+              ),
+            ),
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Dini Günler',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Diyanet İşleri Başkanlığı dini günler takvimi',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                    ),
-                  ],
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  'Diyanet İşleri Başkanlığı dini günler takvimi',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                 ),
               ),
             ),
@@ -133,7 +133,6 @@ class ReligiousDaysScreen extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 
@@ -176,19 +175,36 @@ class ReligiousDaysScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              Text(
-                day.name,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          day.name,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          DateFormat.yMMMMEEEEd('tr').format(_parseDate(day.date)),
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
                     ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                DateFormat.yMMMMEEEEd('tr').format(_parseDate(day.date)),
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(LucideIcons.x),
+                    onPressed: () => Navigator.of(context).pop(),
+                    tooltip: 'Kapat',
+                  ),
+                ],
               ),
               if (explanation != null) ...[
                 const SizedBox(height: 16),

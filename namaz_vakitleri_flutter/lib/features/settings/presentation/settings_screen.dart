@@ -13,6 +13,7 @@ import 'package:namaz_vakitleri_flutter/domain/entities/app_settings.dart';
 import 'package:namaz_vakitleri_flutter/domain/entities/calculation_params.dart';
 import 'package:namaz_vakitleri_flutter/domain/entities/prayer_name.dart';
 import 'package:namaz_vakitleri_flutter/domain/entities/saved_location.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:namaz_vakitleri_flutter/domain/repositories/location_repository.dart';
 import 'package:namaz_vakitleri_flutter/features/location/location.dart';
 import 'package:namaz_vakitleri_flutter/features/notifications/notifications.dart';
@@ -27,6 +28,8 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _isPreviewPlaying = false;
+  bool _gpsLoading = false;
+  String? _gpsError;
 
   static String _randomId() {
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -93,16 +96,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) context.go('/onboarding');
   }
 
+  Future<void> _useGpsLocation() async {
+    setState(() {
+      _gpsLoading = true;
+      _gpsError = null;
+    });
+    try {
+      final result = await getIt<LocationRepository>().getCurrentLocation();
+      if (!mounted) return;
+      if (result == null) {
+        setState(() {
+          _gpsLoading = false;
+          _gpsError = 'Konum alınamadı. İzin verdiğinizden emin olun.';
+        });
+        return;
+      }
+      final id = _randomId();
+      final loc = SavedLocation(
+        id: id,
+        city: result.city ?? 'Konumum',
+        country: result.country ?? '',
+        latitude: result.coordinates.latitude,
+        longitude: result.coordinates.longitude,
+      );
+      context.read<LocationBloc>()
+        ..add(SavedLocationAdded(loc))
+        ..add(LocationSelected(id));
+      if (mounted) {
+        setState(() {
+          _gpsLoading = false;
+          _gpsError = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Konum ayarlandı: ${loc.city}')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _gpsLoading = false;
+          _gpsError = 'Konum alınamadı. İzin verdiğinizden emin olun.';
+        });
+      }
+    }
+  }
+
+  void _openAppSettings() {
+    Geolocator.openAppSettings();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        title: const Text('Ayarlar'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-      ),
       body: BlocBuilder<SettingsBloc, SettingsState>(
         builder: (context, state) {
           final settings = state.settings;
@@ -118,10 +164,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     locationState: locationState,
                     notifState: notifState,
                     isPreviewPlaying: _isPreviewPlaying,
+                    gpsLoading: _gpsLoading,
+                    gpsError: _gpsError,
                     onPlayPreview: _playPreview,
                     onShowLocations: () => _showLocationsSheet(context, locationState),
                     onAddLocation: () => _showCitySearchSheet(context),
                     onManageLocations: () => _showLocationsSheet(context, locationState),
+                    onUseGps: _useGpsLocation,
+                    onOpenAppSettings: _openAppSettings,
                     onResetApp: _resetApp,
                   );
                 },
@@ -260,10 +310,14 @@ class _SettingsBody extends StatelessWidget {
     required this.locationState,
     required this.notifState,
     required this.isPreviewPlaying,
+    required this.gpsLoading,
+    required this.gpsError,
     required this.onPlayPreview,
     required this.onShowLocations,
     required this.onAddLocation,
     required this.onManageLocations,
+    required this.onUseGps,
+    required this.onOpenAppSettings,
     required this.onResetApp,
   });
 
@@ -271,10 +325,14 @@ class _SettingsBody extends StatelessWidget {
   final LocationState locationState;
   final NotificationsState notifState;
   final bool isPreviewPlaying;
+  final bool gpsLoading;
+  final String? gpsError;
   final VoidCallback onPlayPreview;
   final VoidCallback onShowLocations;
   final VoidCallback onAddLocation;
   final VoidCallback onManageLocations;
+  final VoidCallback onUseGps;
+  final VoidCallback onOpenAppSettings;
   final VoidCallback onResetApp;
 
   /// Set to true to show Zikirmatik, Kaza Takibi, İstatistikler in settings.
@@ -290,15 +348,34 @@ class _SettingsBody extends StatelessWidget {
     final playAdhan = notifState.playAdhan;
     final prayerNotifs = notifState.prayerNotifications;
 
-    return ListView(
-      padding: EdgeInsets.fromLTRB(
-        16,
-        8,
-        16,
-        24 + MediaQuery.of(context).viewPadding.bottom,
-      ),
-      children: [
-        _SectionHeader(icon: LucideIcons.mapPin, title: 'Konumlarım'),
+    final padding = EdgeInsets.fromLTRB(
+      16,
+      8,
+      16,
+      24 + MediaQuery.of(context).viewPadding.bottom,
+    );
+    return CustomScrollView(
+      slivers: [
+        SliverAppBar(
+          pinned: false,
+          floating: false,
+          centerTitle: true,
+          title: Text(
+            'Ayarlar',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+          ),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+        ),
+        SliverPadding(
+          padding: padding,
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              _SectionHeader(icon: LucideIcons.mapPin, title: 'Konumlarım'),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -333,12 +410,42 @@ class _SettingsBody extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: onAddLocation,
-                  child: const Text('Yeni Konum Ekle'),
+                FilledButton.icon(
+                  onPressed: gpsLoading ? null : onUseGps,
+                  icon: gpsLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(LucideIcons.navigation),
+                  label: Text(gpsLoading ? 'Konum alınıyor...' : 'GPS ile konum al'),
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
+                ),
+                if (gpsError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    gpsError!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  TextButton.icon(
+                    onPressed: onOpenAppSettings,
+                    icon: const Icon(LucideIcons.settings, size: 18),
+                    label: const Text('Ayarları aç'),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: onAddLocation,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Text('Yeni Konum Ekle'),
                 ),
                 if (saved.isNotEmpty && !isBasit) ...[
                   const SizedBox(height: 12),
@@ -579,15 +686,16 @@ class _SettingsBody extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (theme.brightness == Brightness.light)
-                Image.asset(
-                  'assets/images/logo-default.png',
-                  height: 28,
-                  width: 28,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                ),
-              if (theme.brightness == Brightness.light) const SizedBox(width: 8),
+              Image.asset(
+                theme.brightness == Brightness.light
+                    ? 'assets/images/logo-default.png'
+                    : 'assets/images/logo-darkmode.png',
+                height: 28,
+                width: 28,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+              const SizedBox(width: 8),
               GestureDetector(
                 onTap: () {
                   Clipboard.setData(const ClipboardData(text: '1.0.0'));
@@ -606,6 +714,9 @@ class _SettingsBody extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+            ]),
           ),
         ),
       ],
@@ -745,43 +856,48 @@ class _CitySearchSheetContentState extends State<_CitySearchSheetContent> {
 
   Future<void> _search() async {
     if (_query.trim().length < 2) return;
+    final queryAtStart = _query.trim();
     setState(() {
       _searching = true;
       _error = null;
     });
     try {
-      final results = await getIt<LocationRepository>().searchCities(_query, language: 'tr');
-      if (mounted) {
-        setState(() {
-          _results = results;
-          _searching = false;
-        });
-      }
+      final results = await getIt<LocationRepository>().searchCities(queryAtStart, language: 'tr');
+      if (!mounted) return;
+      if (_query.trim() != queryAtStart) return;
+      setState(() {
+        _results = results;
+        _searching = false;
+        _error = results.isEmpty ? 'Tam eşleşme bulunamadı. Daha fazla harf deneyin.' : null;
+      });
     } catch (_) {
-      if (mounted) {
-        setState(() {
-          _error = 'Bağlantı kurulamadı.';
-          _searching = false;
-        });
-      }
+      if (!mounted) return;
+      if (_query.trim() != queryAtStart) return;
+      setState(() {
+        _error = 'Bağlantı kurulamadı. Lütfen tekrar deneyin.';
+        _searching = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Şehir Seçin',
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: keyboardHeight),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Şehir Seçin',
                   style: theme.textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w900,
                         color: theme.colorScheme.primary,
@@ -823,10 +939,10 @@ class _CitySearchSheetContentState extends State<_CitySearchSheetContent> {
                   const SizedBox(width: 8),
                   FilledButton(
                     onPressed: _query.trim().length >= 2 && !_searching ? _search : null,
-                    child: const Text('Ara'),
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                     ),
+                    child: const Text('Ara'),
                   ),
                 ],
               ),
@@ -837,23 +953,116 @@ class _CitySearchSheetContentState extends State<_CitySearchSheetContent> {
             ],
             const SizedBox(height: 16),
             Flexible(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: _results.length,
-                itemBuilder: (context, i) {
-                  final r = _results[i];
-                  return ListTile(
-                    leading: Icon(LucideIcons.mapPin, color: theme.colorScheme.primary),
-                    title: Text(r.city),
-                    subtitle: r.country != null ? Text(r.country!) : null,
-                    onTap: () => widget.onSelect(r),
-                  );
-                },
-              ),
+              child: _results.isEmpty
+                  ? const SizedBox.shrink()
+                  : ListView(
+                      shrinkWrap: true,
+                      children: _buildSettingsCityResultList(theme),
+                    ),
             ),
           ],
         ),
       ),
+    ),
     );
+  }
+
+  /// Only show "En iyi eşleşme" when the first result's city *starts with* the query (prefix match).
+  List<Widget> _buildSettingsCityResultList(ThemeData theme) {
+    final q = _query.trim().toLowerCase();
+    final hasStrongMatch = q.isNotEmpty &&
+        _results.isNotEmpty &&
+        _results.first.city.toLowerCase().trim().startsWith(q) &&
+        _results.first.placeType == PlaceType.city;
+    final children = <Widget>[];
+    if (hasStrongMatch && _results.isNotEmpty) {
+      children.add(
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 6),
+          child: Text(
+            'En iyi eşleşme',
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+        ),
+      );
+      children.add(
+        ListTile(
+          leading: Icon(
+            LucideIcons.mapPin,
+            size: 20,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          title: Text(
+            _results.first.city,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          subtitle: _results.first.country != null
+              ? Text(
+                  _results.first.country!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                )
+              : null,
+          onTap: () => widget.onSelect(_results.first),
+        ),
+      );
+    }
+    // Exclude any result with same city+country as best match so we never show duplicate (e.g. two Nominatim hits for Utrecht).
+    final first = _results.first;
+    final others = hasStrongMatch
+        ? _results
+            .where((r) =>
+                r.city.toLowerCase().trim() != first.city.toLowerCase().trim() ||
+                (r.country ?? '').toLowerCase() != (first.country ?? '').toLowerCase())
+            .toList()
+        : _results;
+    if (others.isNotEmpty) {
+      if (children.isNotEmpty) children.add(const SizedBox(height: 8));
+      children.add(
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 6),
+          child: Text(
+            'Diğer sonuçlar',
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+      for (final r in others) {
+        children.add(
+          ListTile(
+            leading: Icon(
+              LucideIcons.mapPin,
+              size: 20,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            title: Text(
+              r.city,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: r.country != null
+                ? Text(
+                    r.country!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  )
+                : null,
+            onTap: () => widget.onSelect(r),
+          ),
+        );
+      }
+    }
+    return children;
   }
 }

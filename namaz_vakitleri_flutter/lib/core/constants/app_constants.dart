@@ -16,7 +16,7 @@ class AppConstants {
   static const double cardPaddingHorizontal = 12;
 
   /// Inner card padding (vertical) for main content cards.
-  static const double cardPaddingVertical = 16;
+  static const double cardPaddingVertical = 12;
 
   /// Spacing between related elements.
   static const double defaultSpacing = 24;
@@ -29,4 +29,8 @@ class AppConstants {
 
   /// Workmanager task frequency.
   static const Duration backgroundTaskFrequency = Duration(hours: 24);
+
+  /// Set to true to enable home/lock screen widgets and background widget refresh.
+  /// Disabled for current release; re-enable when focusing on widgets again.
+  static const bool enableWidgets = false;
 }

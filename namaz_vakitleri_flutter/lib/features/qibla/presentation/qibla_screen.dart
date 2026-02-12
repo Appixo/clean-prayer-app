@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -36,6 +37,9 @@ class _QiblaScreenState extends State<QiblaScreen> with SingleTickerProviderStat
   StreamSubscription<CompassEvent>? _compassSubscription;
   late final Ticker _ticker;
   double _lastNotifiedDisplay = 0;
+  bool _wasAligned = false;
+  DateTime? _lastHapticTime;
+  static const _hapticCooldownMs = 2500;
 
   @override
   void initState() {
@@ -156,7 +160,14 @@ class _QiblaScreenState extends State<QiblaScreen> with SingleTickerProviderStat
       return Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          title: const Text('Kıble Yönü'),
+          centerTitle: true,
+          title: Text(
+            'Kıble Yönü',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+          ),
           backgroundColor: Colors.transparent,
           elevation: 0,
           scrolledUnderElevation: 0,
@@ -168,7 +179,14 @@ class _QiblaScreenState extends State<QiblaScreen> with SingleTickerProviderStat
       return Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
-          title: const Text('Kıble Yönü'),
+          centerTitle: true,
+          title: Text(
+            'Kıble Yönü',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+          ),
           backgroundColor: Colors.transparent,
           elevation: 0,
           scrolledUnderElevation: 0,
@@ -216,8 +234,14 @@ class _QiblaScreenState extends State<QiblaScreen> with SingleTickerProviderStat
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text('Kıble Yönü'),
         centerTitle: true,
+        title: Text(
+          'Kıble Yönü',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -232,6 +256,23 @@ class _QiblaScreenState extends State<QiblaScreen> with SingleTickerProviderStat
               final absDeg = degreesFromQibla.abs();
               final isAligned = absDeg < 10 || absDeg > 350;
               final isNearlyAligned = absDeg >= 10 && absDeg <= 20;
+              if (isAligned && !_wasAligned) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
+                  final now = DateTime.now();
+                  final allowHaptic = _lastHapticTime == null ||
+                      now.difference(_lastHapticTime!).inMilliseconds >= _hapticCooldownMs;
+                  if (allowHaptic) {
+                    HapticFeedback.mediumImpact();
+                    _lastHapticTime = now;
+                  }
+                  setState(() => _wasAligned = true);
+                });
+              } else if (!isAligned && _wasAligned) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) setState(() => _wasAligned = false);
+                });
+              }
               return Column(
                 children: [
                   const SizedBox(height: 8),
@@ -253,20 +294,6 @@ class _QiblaScreenState extends State<QiblaScreen> with SingleTickerProviderStat
                       ),
                     ),
                   ),
-                  if (!isAligned && degreesFromQibla.abs() > 20) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 32),
-                      child: Text(
-                        'Seccade Kabe\'ye baktığında Kıble yönündesiniz',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          height: 1.3,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
                   RepaintBoundary(child: _AnglePill(degreesFromQibla: degreesFromQibla, theme: theme)),
                 ],
               );
@@ -277,40 +304,27 @@ class _QiblaScreenState extends State<QiblaScreen> with SingleTickerProviderStat
   }
 }
 
-/// Status pill: verbal state only (no degrees). Angle pill below is the single numeric authority.
+/// Status pill: single fixed instruction so the UI does not change when turning.
+/// Visual feedback (green pill/arrow) still indicates alignment; text stays "Kıbleye doğru dönün".
 class _StatusPill extends StatelessWidget {
   const _StatusPill({required this.isAligned, required this.isNearlyAligned});
 
   final bool isAligned;
   final bool isNearlyAligned;
 
+  static const String _message = 'Kıbleye doğru dönün';
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    String message;
-    IconData icon;
-    Color pillColor;
-    Color borderColor;
-    Color textColor;
-    if (isAligned) {
-      message = 'Kıble yönündesiniz';
-      icon = LucideIcons.checkCircle2;
-      pillColor = Colors.green.withOpacity(0.12);
-      borderColor = Colors.green.withOpacity(0.5);
-      textColor = Colors.green;
-    } else if (isNearlyAligned) {
-      message = 'Kıbleye çok yaklaştınız';
-      icon = LucideIcons.compass;
-      pillColor = theme.colorScheme.surfaceContainerHigh.withOpacity(0.8);
-      borderColor = Colors.green.withOpacity(0.35);
-      textColor = theme.colorScheme.onSurface;
-    } else {
-      message = 'Kıbleye doğru dönün';
-      icon = LucideIcons.compass;
-      pillColor = theme.colorScheme.surfaceContainerHigh.withOpacity(0.8);
-      borderColor = theme.colorScheme.outline.withOpacity(0.3);
-      textColor = theme.colorScheme.onSurface;
-    }
+    final pillColor = isAligned
+        ? Colors.green.withOpacity(0.12)
+        : theme.colorScheme.surfaceContainerHigh.withOpacity(0.8);
+    final borderColor = isAligned
+        ? Colors.green.withOpacity(0.5)
+        : theme.colorScheme.outline.withOpacity(0.3);
+    final iconColor = isAligned ? Colors.green : theme.colorScheme.primary;
+    final textColor = isAligned ? Colors.green : theme.colorScheme.onSurface;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Container(
@@ -324,14 +338,10 @@ class _StatusPill extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 22,
-              color: isAligned ? Colors.green : theme.colorScheme.primary,
-            ),
+            Icon(LucideIcons.compass, size: 22, color: iconColor),
             const SizedBox(width: 12),
             Text(
-              message,
+              _message,
               style: theme.textTheme.labelLarge?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: textColor,

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:namaz_vakitleri_flutter/app.dart';
+import 'package:namaz_vakitleri_flutter/core/constants/app_constants.dart';
 import 'package:namaz_vakitleri_flutter/core/constants/storage_keys.dart';
 import 'package:namaz_vakitleri_flutter/core/di/injection.dart';
 import 'package:namaz_vakitleri_flutter/core/routes/app_router.dart';
@@ -17,9 +19,11 @@ import 'package:namaz_vakitleri_flutter/features/zikirmatik/zikirmatik.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FlutterForegroundTask.initCommunicationPort();
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await initDependencies();
 
   final onboardingNotifier = OnboardingNotifier();
@@ -40,14 +44,15 @@ void main() async {
     zikirmatikBloc: getIt<ZikirmatikBloc>(),
   ));
 
-  // Defer heavy/plugin init until after first frame and a delay so the VM
-  // service can accept the debug connection (avoids "Service connection disposed"
-  // / "Lost connection to device" on Android emulator).
+  // Defer heavy/plugin init until after first frame so the VM service can
+  // attach (avoids "Lost connection to device" on Android). A short delay
+  // lets the first frame draw and the debug connection stabilize.
   WidgetsBinding.instance.addPostFrameCallback((_) async {
-    await Future<void>.delayed(const Duration(seconds: 5));
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
     await initNotificationsAndAdhan();
     getIt<LocationBloc>().add(const LocationRequested());
     getIt<PrayerTimesBloc>().add(const PrayerTimesRefreshRequested());
-    await registerBackgroundTask();
+    getIt<NotificationsBloc>().add(const NotificationsLoadRequested());
+    if (AppConstants.enableWidgets) await registerBackgroundTask();
   });
 }

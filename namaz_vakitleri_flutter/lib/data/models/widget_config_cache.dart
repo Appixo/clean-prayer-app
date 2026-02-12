@@ -15,6 +15,7 @@ class WidgetConfigCache {
     required this.asrMethodIndex,
     required this.highLatitudeRuleIndex,
     required this.timeFormatIndex,
+    this.themeIndex = 0,
   });
 
   final double latitude;
@@ -25,6 +26,7 @@ class WidgetConfigCache {
   final int asrMethodIndex;
   final int highLatitudeRuleIndex;
   final int timeFormatIndex;
+  final int themeIndex;
 
   Coordinates get coordinates => Coordinates(latitude: latitude, longitude: longitude);
 
@@ -43,6 +45,7 @@ class WidgetConfigCache {
         'asrMethodIndex': asrMethodIndex,
         'highLatitudeRuleIndex': highLatitudeRuleIndex,
         'timeFormatIndex': timeFormatIndex,
+        'themeIndex': themeIndex,
       };
 
   static WidgetConfigCache? fromJson(Map<String, dynamic>? json) {
@@ -61,6 +64,7 @@ class WidgetConfigCache {
         asrMethodIndex: (json['asrMethodIndex'] as int?) ?? AsrMethod.standard.index,
         highLatitudeRuleIndex: (json['highLatitudeRuleIndex'] as int?) ?? HighLatitudeRule.middleOfTheNight.index,
         timeFormatIndex: (json['timeFormatIndex'] as int?) ?? 1,
+        themeIndex: (json['themeIndex'] as int?) ?? 0,
       );
     } catch (_) {
       return null;

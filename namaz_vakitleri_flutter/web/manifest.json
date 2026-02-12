@@ -1,6 +1,6 @@
 {
-    "name": "namaz_vakitleri_flutter",
-    "short_name": "namaz_vakitleri_flutter",
+    "name": "Namaz Vakitleri",
+    "short_name": "Namaz Vakitleri",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

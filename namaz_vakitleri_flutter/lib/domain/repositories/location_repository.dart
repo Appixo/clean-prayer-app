@@ -14,6 +14,16 @@ class LocationResult {
   final String? timezone;
 }
 
+/// Classifies Nominatim place type for ranking (cities boosted, organizations penalized).
+enum PlaceType {
+  /// City or town — preferred for "En iyi eşleşme".
+  city,
+  /// Village, municipality — neutral ranking.
+  village,
+  /// Amenity, building, office, etc. — downranked.
+  other,
+}
+
 /// One search hit from Nominatim (city/location for onboarding).
 class SearchResult {
   const SearchResult({
@@ -21,12 +31,14 @@ class SearchResult {
     required this.longitude,
     required this.city,
     this.country,
+    this.placeType = PlaceType.other,
   });
 
   final double latitude;
   final double longitude;
   final String city;
   final String? country;
+  final PlaceType placeType;
 }
 
 abstract class LocationRepository {

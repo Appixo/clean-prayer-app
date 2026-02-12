@@ -32,31 +32,34 @@ class _MainShellState extends State<MainShell> {
     const SettingsScreen(),
   ];
 
+  /// Height reserved for the bottom nav (bar + padding + safe area).
+  static double _bottomNavHeight(BuildContext context) {
+    final padding = MediaQuery.viewPaddingOf(context);
+    return 72.0 + padding.bottom; // 56 (Material) + 16 (vertical padding) + safe area
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final primary = theme.colorScheme.primary;
     final unselected = theme.colorScheme.onSurfaceVariant;
     final currentIndex = context.watch<TabIndexCubit>().state.clamp(0, _screens.length - 1);
+    final bodyHeight = MediaQuery.sizeOf(context).height - _bottomNavHeight(context);
     return Scaffold(
-      body: PatternBackground(
-        child: SafeArea(
-          minimum: EdgeInsets.only(top: 24),
-          child: IndexedStack(
-            index: currentIndex,
-            children: _screens,
+      body: SizedBox(
+        height: bodyHeight,
+        child: PatternBackground(
+          child: SafeArea(
+            minimum: EdgeInsets.only(top: 12),
+            child: IndexedStack(
+              index: currentIndex,
+              children: _screens,
+            ),
           ),
         ),
       ),
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          border: Border(
-            top: BorderSide(
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-            ),
-          ),
-        ),
+        color: theme.colorScheme.surface,
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),

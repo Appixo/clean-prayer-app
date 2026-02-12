@@ -20,14 +20,22 @@ class WidgetService {
 
   final SharedPreferences _prefs;
 
-  /// Android widget provider name; must match native AndroidManifest.
+  /// Android widget provider names; must match native AndroidManifest.
   static const String androidWidgetName = 'PrayerTimesWidgetProvider';
+  static const String androidCountdownWidgetName = 'CountdownWidgetProvider';
+  static const String androidScheduleWidgetName = 'ScheduleWidgetProvider';
 
   /// Resolves app theme to widget theme string for native UI.
   static String resolveWidgetTheme(AppTheme theme) {
     if (theme == AppTheme.light) return 'light';
     if (theme == AppTheme.dark) return 'dark';
     return 'light'; // system: default to light; native can use system if needed
+  }
+
+  /// Resolves theme string from cached themeIndex (for background/Workmanager).
+  static String themeStringFromIndex(int themeIndex) {
+    if (themeIndex == 1) return 'dark';
+    return 'light';
   }
 
   static void _log(String message) {
@@ -46,8 +54,9 @@ class WidgetService {
     String? country,
     required CalculationParams calculationParams,
     required TimeFormat timeFormat,
+    required AppTheme theme,
   }) async {
-    if (!Platform.isAndroid) return;
+    if (kIsWeb || !Platform.isAndroid) return;
     try {
       final cache = WidgetConfigCache(
         latitude: coordinates.latitude,
@@ -58,6 +67,7 @@ class WidgetService {
         asrMethodIndex: calculationParams.asrMethod.index,
         highLatitudeRuleIndex: calculationParams.highLatitudeRule.index,
         timeFormatIndex: timeFormat.index,
+        themeIndex: theme.index,
       );
       await _prefs.setString(StorageKeys.widgetConfigCache, jsonEncode(cache.toJson()));
       _log('Config cache persisted: $city');
@@ -89,7 +99,7 @@ class WidgetService {
     required PrayerTimesEntity prayerTimes,
     required String theme,
   }) async {
-    if (!Platform.isAndroid) return;
+    if (kIsWeb || !Platform.isAndroid) return;
     try {
       await HomeWidget.saveWidgetData<String>('city', city);
       await HomeWidget.saveWidgetData<String>('date', date);
@@ -106,9 +116,15 @@ class WidgetService {
       );
       await HomeWidget.saveWidgetData<int?>('time_until_next_ms', prayerTimes.timeUntilNextMs);
       await HomeWidget.saveWidgetData<String>('theme', theme);
+      final now = DateTime.now();
+      final lastUpdated =
+          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
+      await HomeWidget.saveWidgetData<String>('last_updated', lastUpdated);
       _savePrayerTimes(prayerTimes);
       await HomeWidget.updateWidget(androidName: androidWidgetName);
-      _log('Widget updated: city=$city, next=${prayerTimes.nextPrayer?.key}');
+      await HomeWidget.updateWidget(androidName: androidCountdownWidgetName);
+      await HomeWidget.updateWidget(androidName: androidScheduleWidgetName);
+      _log('Widget updated: city=$city, next=${prayerTimes.nextPrayer?.key}, last_updated=$lastUpdated');
     } catch (e) {
       // Log once per message type to avoid spamming (e.g. widget not on home screen yet)
       if (kDebugMode) {

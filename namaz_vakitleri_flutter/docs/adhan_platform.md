@@ -8,8 +8,8 @@ Per migration plan:
 
 ## Current implementation (Android)
 
-- **Adhan playback**: `lib/data/services/adhan_playback_service.dart` uses **just_audio** + **just_audio_background** so playback continues when the app is in background (foreground service + media notification).
-- **Notification actions**: `lib/core/platform/notifications_platform.dart` initializes **flutter_local_notifications** with:
+- **Adhan playback**: `lib/data/services/adhan_playback_service.dart` uses **just_audio** with **flutter_foreground_task** so playback continues in background. A simple notification (title + "Durdur" button only) is shown—no media-style "Phone speaker" notification, so users cannot seek/pause from the system media controls.
+- **Notification actions**: `lib/core/platform/notifications_platform.dart` initializes **flutter_foreground_task** (adhan channel) and **flutter_local_notifications** with:
   - **Mark as Prayed** (`MARK_PRAYED`): writes to SharedPreferences (prayer log) so it works when the app is killed.
   - **Stop** (`STOP_ADHAN`): stops the adhan player when the app is running; when the app is killed, cancelling the notification dismisses it.
 - **Background handler**: `lib/core/platform/notification_action_handler.dart` defines a top-level `@pragma('vm:entry-point')` handler for `onDidReceiveBackgroundNotificationResponse` so action taps are handled even when the app was terminated.

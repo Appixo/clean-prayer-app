@@ -1,5 +1,8 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
+# Documentation and app policy (keep tracked for store listing and in-app link)
+# Do not ignore: docs/, **/docs/PRIVACY_POLICY.md
+
 # macOS
 .DS_Store
 *.pem

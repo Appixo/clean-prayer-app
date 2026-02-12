@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -82,6 +83,19 @@ class NamazVakitleriApp extends StatelessWidget {
                 final theme = useDark == null
                     ? Theme.of(context)
                     : (useDark ? AppTheme.dark : AppTheme.light);
+                final isDark = theme.brightness == Brightness.dark;
+                SystemChrome.setSystemUIOverlayStyle(
+                  SystemUiOverlayStyle(
+                    statusBarColor: Colors.transparent,
+                    statusBarIconBrightness:
+                        isDark ? Brightness.light : Brightness.dark,
+                    statusBarBrightness:
+                        isDark ? Brightness.dark : Brightness.light,
+                    systemNavigationBarColor: theme.colorScheme.surface,
+                    systemNavigationBarIconBrightness:
+                        isDark ? Brightness.light : Brightness.dark,
+                  ),
+                );
                 return Theme(data: theme, child: child ?? const SizedBox.shrink());
               },
             );

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:intl/intl.dart';
 import 'package:namaz_vakitleri_flutter/domain/entities/prayer_name.dart';
 import 'package:namaz_vakitleri_flutter/domain/entities/prayer_times_entity.dart';
 import 'package:namaz_vakitleri_flutter/domain/entities/saved_location.dart';
@@ -10,18 +9,76 @@ import 'package:namaz_vakitleri_flutter/core/widgets/error_placeholder.dart';
 import 'package:namaz_vakitleri_flutter/core/widgets/loading_indicator.dart';
 import 'package:namaz_vakitleri_flutter/features/home/presentation/widgets/date_selector_card.dart';
 import 'package:namaz_vakitleri_flutter/features/home/presentation/widgets/prayer_time_card.dart';
-import 'package:namaz_vakitleri_flutter/features/home/presentation/widgets/verse_of_day_card.dart';
+import 'package:namaz_vakitleri_flutter/features/home/presentation/widgets/verse_of_day_card.dart' show VerseOfDayTeaser;
 import 'package:namaz_vakitleri_flutter/domain/entities/app_settings.dart' show ViewMode, TimeFormat;
+import 'package:namaz_vakitleri_flutter/core/platform/notifications_platform.dart';
+import 'package:namaz_vakitleri_flutter/data/services/adhan_playback_service.dart';
 import 'package:namaz_vakitleri_flutter/features/location/location.dart';
+import 'package:namaz_vakitleri_flutter/features/notifications/notifications.dart';
 import 'package:namaz_vakitleri_flutter/features/prayer_times/prayer_times.dart';
 import 'package:namaz_vakitleri_flutter/features/settings/settings.dart';
-import 'package:share_plus/share_plus.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   /// Which prayer row to highlight. Matches the countdown: we highlight the *next* prayer
   /// so the user sees at a glance what the countdown is for. [nextPrayerDate] is that day.
+  /// Called when the countdown hits zero. Shows notification and plays adhan if enabled for that prayer.
+  static void _onCountdownReachedZero(BuildContext context, PrayerName? prayer) {
+    if (prayer == null) return;
+    final notifState = context.read<NotificationsBloc>().state;
+    if (notifState is! NotificationsStateLoaded) return;
+    final enabled = notifState.prayerNotifications[prayer] ?? false;
+    if (!enabled) return;
+
+    final now = DateTime.now();
+    final dateKey =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final title = _prayerNotificationTitle(prayer);
+    final body = 'Namaz vakti girdi.';
+    final playAdhan = notifState.playAdhan && prayer != PrayerName.sunrise;
+
+    // When playing adhan, the foreground service shows its own notification ("X Adhan" + Durdur).
+    // Skip the separate prayer-time notification to avoid showing two notifications for the same event.
+    if (!playAdhan) {
+      final id = 100 + prayer.index;
+      showPrayerTimeNotification(
+        id: id,
+        title: title,
+        body: body,
+        dateKey: dateKey,
+        prayerName: prayer.key,
+      );
+    }
+
+    if (playAdhan) {
+      final assetPath = prayer == PrayerName.fajr
+          ? 'assets/audio/adhan_fajr.mp3'
+          : 'assets/audio/adhan_fajr.mp3';
+      AdhanPlaybackService.instance.play(
+        assetPath: assetPath,
+        prayerName: title,
+      );
+    }
+  }
+
+  static String _prayerNotificationTitle(PrayerName p) {
+    switch (p) {
+      case PrayerName.fajr:
+        return 'İmsak';
+      case PrayerName.sunrise:
+        return 'Güneş';
+      case PrayerName.dhuhr:
+        return DateTime.now().weekday == DateTime.friday ? 'Cuma' : 'Öğle';
+      case PrayerName.asr:
+        return 'İkindi';
+      case PrayerName.maghrib:
+        return 'Akşam';
+      case PrayerName.isha:
+        return 'Yatsı';
+    }
+  }
+
   static PrayerName? getActivePrayer(
     PrayerTimesEntity pt,
     DateTime displayedDate,
@@ -92,18 +149,13 @@ class HomeScreen extends StatelessWidget {
                             .read<PrayerTimesBloc>()
                             .add(const PrayerTimesRefreshRequested());
                       },
+                      onCountdownReachedZero: (prayer) =>
+                          _onCountdownReachedZero(context, prayer),
                       onDateChanged: (d) {
                         context
                             .read<PrayerTimesBloc>()
                             .add(PrayerTimesDateChanged(d));
                       },
-                      onShare: () => _sharePrayerTimes(
-                        context,
-                        prayerState.city,
-                        prayerState.date,
-                        prayerState.prayerTimes,
-                        timeFormat,
-                      ),
                       onLocationTap: () => _showLocationSheet(context),
                   );
                 },
@@ -157,35 +209,6 @@ class HomeScreen extends StatelessWidget {
       },
     );
   }
-
-  static Future<void> _sharePrayerTimes(
-    BuildContext context,
-    String city,
-    DateTime date,
-    PrayerTimesEntity pt,
-    TimeFormat timeFormatSetting,
-  ) async {
-    final formatter = DateFormat.yMMMMEEEEd('tr');
-    final timeFormat = timeFormatSetting == TimeFormat.hour24
-        ? DateFormat.Hm()
-        : DateFormat('h:mm a', 'tr');
-    final dateStr = formatter.format(date);
-    final buffer = StringBuffer();
-    buffer.writeln('Namaz Vakitleri - $dateStr');
-    buffer.writeln();
-    buffer.writeln('📍 $city');
-    buffer.writeln();
-    final isFriday = date.weekday == DateTime.friday;
-    buffer.writeln('Sabah: ${timeFormat.format(pt.fajr)}');
-    buffer.writeln('Güneş: ${timeFormat.format(pt.sunrise)}');
-    buffer.writeln('${isFriday ? "Cuma" : "Öğle"}: ${timeFormat.format(pt.dhuhr)}');
-    buffer.writeln('İkindi: ${timeFormat.format(pt.asr)}');
-    buffer.writeln('Akşam: ${timeFormat.format(pt.maghrib)}');
-    buffer.writeln('Yatsı: ${timeFormat.format(pt.isha)}');
-    buffer.writeln();
-    buffer.writeln('Namaz Vakitleri Uygulaması');
-    await Share.share(buffer.toString());
-  }
 }
 
 class _LoadedContent extends StatelessWidget {
@@ -201,8 +224,8 @@ class _LoadedContent extends StatelessWidget {
     this.countdownNextPrayer,
     required this.savedLocations,
     required this.onRefresh,
+    this.onCountdownReachedZero,
     required this.onDateChanged,
-    required this.onShare,
     required this.onLocationTap,
   });
 
@@ -219,8 +242,9 @@ class _LoadedContent extends StatelessWidget {
   final PrayerName? countdownNextPrayer;
   final List<SavedLocation> savedLocations;
   final VoidCallback onRefresh;
+  /// Called when countdown hits zero, with the prayer that was reached. Then [onRefresh] is called.
+  final void Function(PrayerName?)? onCountdownReachedZero;
   final ValueChanged<DateTime> onDateChanged;
-  final VoidCallback onShare;
   final VoidCallback onLocationTap;
 
   @override
@@ -233,61 +257,82 @@ class _LoadedContent extends StatelessWidget {
     final countdownPrayerName = nextPrayerDate != null && countdownNextPrayer != null
         ? _countdownPrayerName(countdownNextPrayer!, nextPrayerDate!)
         : null;
-    final height = MediaQuery.of(context).size.height;
-    // iPhone SE = 667pt; use smallest screen as standard so everything fits there first.
-    final isCompact = height < 700;
-    final isVerySmall = height < 670;
+    final media = MediaQuery.of(context);
+    final size = media.size;
+    final viewPadding = media.viewPadding;
+    final textScale = media.textScaler.scale(1.0);
+    final availableHeight = size.height -
+        viewPadding.top -
+        viewPadding.bottom -
+        kBottomNavigationBarHeight;
+    // Compact only on smaller height so S25 and similar get larger prayers; normal = bigger text and rows.
+    final isCompact = availableHeight < 640 || textScale > 1.15;
+    final isVerySmall = availableHeight < 560;
+    // Grid fallback: guarantee all 6 prayers visible on very small / high text scale.
+    final useGrid = availableHeight < 600 || textScale > 1.2;
     final hasCountry = (country ?? '').isNotEmpty;
     final locationLabel = city.isNotEmpty ? city.toUpperCase() : 'KONUM SEÇİN';
-    final bottomPad =
-        (isVerySmall ? 12 : isCompact ? 16 : 24) + MediaQuery.of(context).viewPadding.bottom;
-    final topPad = isVerySmall ? 4.0 : (isCompact ? 6.0 : 8.0);
+    // Shell body height already stops at bottom nav; small gap so teaser isn't flush.
+    final bottomPad = 20.0;
+    // Reduce header padding in compact so more space for prayers.
+    final topPad = isVerySmall ? 0.0 : (isCompact ? 2.0 : 4.0);
 
+    final horizontalPad = isCompact ? 12.0 : 16.0;
+    // Body height in shell stops at bottom nav, so content stays above it; no page scroll.
     return RefreshIndicator(
       onRefresh: () async => onRefresh(),
-      child: _buildSingleScroll(
-        context,
-        theme,
-        topPad,
-        bottomPad,
-        isBasit,
-        dateKey,
-        date,
-        activePrayer,
-        countdownPrayerName,
-        countdownTimeUntilMs,
-        prayerTimes,
-        onRefresh,
-        onDateChanged,
-        onShare,
-        onLocationTap,
-        locationLabel,
-        hasCountry,
-        country,
-        viewMode,
-        timeFormat,
-        isCompact,
-        isVerySmall,
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.fromLTRB(horizontalPad, topPad, horizontalPad, bottomPad),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildAboveTheFold(
+              context,
+              theme,
+              isBasit,
+              dateKey,
+              date,
+              activePrayer,
+              countdownPrayerName,
+              countdownNextPrayer,
+              countdownTimeUntilMs,
+              prayerTimes,
+              onRefresh,
+              onCountdownReachedZero,
+              onDateChanged,
+              onLocationTap,
+              locationLabel,
+              hasCountry,
+              country,
+              viewMode,
+              timeFormat,
+              isCompact,
+              isVerySmall,
+              useGrid,
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  /// Basit view: single scroll with all content.
-  Widget _buildSingleScroll(
+  /// Fixed content: location, date, countdown, 6 prayers. Must fit on 6.2" without scroll.
+  Widget _buildAboveTheFold(
     BuildContext context,
     ThemeData theme,
-    double topPad,
-    double bottomPad,
     bool isBasit,
     String dateKey,
     DateTime date,
     PrayerName? activePrayer,
     String? countdownPrayerName,
+    PrayerName? countdownNextPrayer,
     int? countdownTimeUntilMs,
     PrayerTimesEntity prayerTimes,
     VoidCallback onRefresh,
+    void Function(PrayerName?)? onCountdownReachedZero,
     ValueChanged<DateTime> onDateChanged,
-    VoidCallback onShare,
     VoidCallback onLocationTap,
     String locationLabel,
     bool hasCountry,
@@ -296,16 +341,15 @@ class _LoadedContent extends StatelessWidget {
     TimeFormat timeFormat,
     bool isCompact,
     bool isVerySmall,
+    bool useGrid,
   ) {
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: EdgeInsets.fromLTRB(16, topPad, 16, bottomPad),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
           if (!isBasit)
             Padding(
-              padding: EdgeInsets.only(bottom: isVerySmall ? 2 : (isCompact ? 4 : 8)),
+              padding: EdgeInsets.only(bottom: isVerySmall ? 2 : (isCompact ? 3 : 4)),
               child: Row(
                 children: [
                     Expanded(
@@ -315,7 +359,7 @@ class _LoadedContent extends StatelessWidget {
                         child: Padding(
                           padding: EdgeInsets.symmetric(
                             horizontal: isVerySmall ? 6 : (isCompact ? 8 : 10),
-                            vertical: isVerySmall ? 4 : (isCompact ? 6 : 8),
+                            vertical: isVerySmall ? 2 : (isCompact ? 4 : 5),
                           ),
                           child: Row(
                             children: [
@@ -333,27 +377,22 @@ class _LoadedContent extends StatelessWidget {
                                       locationLabel,
                                       style: (isVerySmall
                                               ? theme.textTheme.labelLarge
-                                              : isCompact
-                                                  ? theme.textTheme.titleSmall
-                                                  : theme.textTheme.titleMedium)
+                                              : theme.textTheme.titleSmall)
                                           ?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 1.2,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 1.0,
                                         color: theme.colorScheme.primary,
-                                        shadows: [
-                                          Shadow(
-                                            color: Colors.black.withOpacity(0.2),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 1),
-                                          ),
-                                        ],
                                       ),
                                     ),
                                     if (hasCountry)
-                                      Text(
-                                        country!,
-                                        style: theme.textTheme.bodySmall?.copyWith(
-                                          color: theme.colorScheme.onSurfaceVariant,
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 1),
+                                        child: Text(
+                                          country!,
+                                          style: theme.textTheme.bodySmall?.copyWith(
+                                            color: theme.colorScheme.onSurfaceVariant,
+                                            height: 1.2,
+                                          ),
                                         ),
                                       ),
                                   ],
@@ -371,9 +410,10 @@ class _LoadedContent extends StatelessWidget {
                       ),
                     ),
                   IconButton(
-                    icon: const Icon(LucideIcons.share2, size: 20),
-                    onPressed: onShare,
+                    icon: const Icon(LucideIcons.bookOpen, size: 22),
+                    onPressed: () => VerseOfDayTeaser.showVerseSheet(context),
                     color: theme.colorScheme.primary,
+                    tooltip: 'Günün Ayeti',
                   ),
                 ],
               ),
@@ -385,170 +425,255 @@ class _LoadedContent extends StatelessWidget {
                 onDateChanged: onDateChanged,
                 isCompact: isCompact,
               ),
-              SizedBox(height: isVerySmall ? 6 : (isCompact ? 8 : 12)),
+              SizedBox(height: isVerySmall ? 4 : (isCompact ? 4 : 10)),
             ],
-            // 3. Prayer times card (with countdown at top)
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    theme.colorScheme.surfaceContainerHighest,
-                    theme.colorScheme.surfaceContainerHighest.withOpacity(0.85),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(AppConstants.cardRadius),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: isVerySmall ? 6 : (isCompact ? 8 : AppConstants.cardPaddingHorizontal),
-                  vertical: isVerySmall ? 6 : (isCompact ? 10 : 28),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (!isBasit &&
-                        countdownPrayerName != null &&
-                        countdownTimeUntilMs != null) ...[
+            // 3. Prayer times: countdown then list (larger rows on normal/S25)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Countdown: 56–64 dp in compact
+                if (!isBasit &&
+                    countdownPrayerName != null &&
+                    countdownTimeUntilMs != null)
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
                       Container(
-                        height: isVerySmall ? 80 : (isCompact ? 100 : 140),
-                        margin: EdgeInsets.symmetric(
-                          horizontal: isVerySmall ? 0 : (isCompact ? 4 : 8),
-                          vertical: isVerySmall ? 0 : 4,
-                        ),
+                        height: isVerySmall ? 56 : (isCompact ? 60 : 76),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              theme.colorScheme.surfaceContainerHighest,
-                              theme.colorScheme.surfaceContainerHighest.withOpacity(0.85),
-                            ],
-                          ),
+                          color: theme.brightness == Brightness.dark
+                              ? theme.colorScheme.surface.withValues(alpha: 0.55)
+                              : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.9),
                           borderRadius: BorderRadius.circular(AppConstants.cardRadius),
-                          border: Border.all(
-                            color: theme.colorScheme.onSurface.withOpacity(0.06),
-                            width: 1,
-                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.08),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1),
                             ),
                           ],
                         ),
                         child: Center(
                           child: CountdownText(
                             initialTimeUntilMs: countdownTimeUntilMs,
-                            onReachedZero: onRefresh,
+                            onReachedZero: () {
+                              onCountdownReachedZero?.call(countdownNextPrayer);
+                              onRefresh();
+                            },
                             style: theme.textTheme.headlineMedium?.copyWith(
                               fontWeight: FontWeight.w700,
                               color: theme.colorScheme.onSurface,
-                              fontSize: isVerySmall ? 40 : (isCompact ? 48 : 52),
+                              fontSize: isVerySmall ? 28 : (isCompact ? 32 : 42),
                               fontFeatures: [FontFeature.tabularFigures()],
                               letterSpacing: 2,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.black.withOpacity(0.15),
-                                  blurRadius: 1,
-                                  offset: const Offset(0, 1),
-                                ),
-                              ],
                             ),
                           ),
                         ),
                       ),
-                      SizedBox(height: isVerySmall ? 4 : (isCompact ? 12 : 28)),
-                      SizedBox(height: isVerySmall ? 4 : (isCompact ? 8 : 12)),
                     ],
-                    // Prayer rows
-                    PrayerTimeCard(
-                      prayer: PrayerName.fajr,
-                      time: prayerTimes.fajr,
-                      dateKey: dateKey,
-                      isHighlighted: activePrayer == PrayerName.fajr,
-                      isSunrise: false,
-                      viewMode: viewMode,
-                      timeFormat: timeFormat,
-                      isCompact: isCompact,
-                      isVerySmall: isVerySmall,
-                    ),
-                    PrayerTimeCard(
-                      prayer: PrayerName.sunrise,
-                      time: prayerTimes.sunrise,
-                      dateKey: dateKey,
-                      isHighlighted: activePrayer == PrayerName.sunrise,
-                      isSunrise: true,
-                      viewMode: viewMode,
-                      timeFormat: timeFormat,
-                      isCompact: isCompact,
-                      isVerySmall: isVerySmall,
-                    ),
-                    PrayerTimeCard(
-                      prayer: PrayerName.dhuhr,
-                      time: prayerTimes.dhuhr,
-                      dateKey: dateKey,
-                      isHighlighted: activePrayer == PrayerName.dhuhr,
-                      isSunrise: false,
-                      viewMode: viewMode,
-                      timeFormat: timeFormat,
-                      isCompact: isCompact,
-                      isVerySmall: isVerySmall,
-                    ),
-                    PrayerTimeCard(
-                      prayer: PrayerName.asr,
-                      time: prayerTimes.asr,
-                      dateKey: dateKey,
-                      isHighlighted: activePrayer == PrayerName.asr,
-                      isSunrise: false,
-                      viewMode: viewMode,
-                      timeFormat: timeFormat,
-                      isCompact: isCompact,
-                      isVerySmall: isVerySmall,
-                    ),
-                    PrayerTimeCard(
-                      prayer: PrayerName.maghrib,
-                      time: prayerTimes.maghrib,
-                      dateKey: dateKey,
-                      isHighlighted: activePrayer == PrayerName.maghrib,
-                      isSunrise: false,
-                      viewMode: viewMode,
-                      timeFormat: timeFormat,
-                      isCompact: isCompact,
-                      isVerySmall: isVerySmall,
-                    ),
-                    PrayerTimeCard(
-                      prayer: PrayerName.isha,
-                      time: prayerTimes.isha,
-                      dateKey: dateKey,
-                      isHighlighted: activePrayer == PrayerName.isha,
-                      isSunrise: false,
-                      viewMode: viewMode,
-                      timeFormat: timeFormat,
-                      isCompact: isCompact,
-                      isVerySmall: isVerySmall,
-                    ),
-                  ],
+                  ),
+                // Prayer list: translucent (match date/countdown)
+                Container(
+                  decoration: BoxDecoration(
+                    color: theme.brightness == Brightness.dark
+                        ? theme.colorScheme.surface.withValues(alpha: 0.55)
+                        : theme.colorScheme.surface.withValues(alpha: 0.92),
+                    borderRadius: BorderRadius.circular(AppConstants.cardRadius),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 4,
+                        offset: const Offset(0, 1),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isVerySmall ? 6 : (isCompact ? 8 : AppConstants.cardPaddingHorizontal),
+                          vertical: isVerySmall ? 2 : (isCompact ? 3 : 8),
+                        ),
+                        child: useGrid
+                            ? _buildPrayerGrid(
+                                dateKey: dateKey,
+                                activePrayer: activePrayer,
+                                prayerTimes: prayerTimes,
+                                viewMode: viewMode,
+                                timeFormat: timeFormat,
+                              )
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  PrayerTimeCard(
+                                    prayer: PrayerName.fajr,
+                                    time: prayerTimes.fajr,
+                                    dateKey: dateKey,
+                                    isHighlighted: activePrayer == PrayerName.fajr,
+                                    isSunrise: false,
+                                    viewMode: viewMode,
+                                    timeFormat: timeFormat,
+                                    isCompact: isCompact,
+                                    isVerySmall: isVerySmall,
+                                  ),
+                                  PrayerTimeCard(
+                                    prayer: PrayerName.sunrise,
+                                    time: prayerTimes.sunrise,
+                                    dateKey: dateKey,
+                                    isHighlighted: activePrayer == PrayerName.sunrise,
+                                    isSunrise: true,
+                                    viewMode: viewMode,
+                                    timeFormat: timeFormat,
+                                    isCompact: isCompact,
+                                    isVerySmall: isVerySmall,
+                                  ),
+                                  PrayerTimeCard(
+                                    prayer: PrayerName.dhuhr,
+                                    time: prayerTimes.dhuhr,
+                                    dateKey: dateKey,
+                                    isHighlighted: activePrayer == PrayerName.dhuhr,
+                                    isSunrise: false,
+                                    viewMode: viewMode,
+                                    timeFormat: timeFormat,
+                                    isCompact: isCompact,
+                                    isVerySmall: isVerySmall,
+                                  ),
+                                  PrayerTimeCard(
+                                    prayer: PrayerName.asr,
+                                    time: prayerTimes.asr,
+                                    dateKey: dateKey,
+                                    isHighlighted: activePrayer == PrayerName.asr,
+                                    isSunrise: false,
+                                    viewMode: viewMode,
+                                    timeFormat: timeFormat,
+                                    isCompact: isCompact,
+                                    isVerySmall: isVerySmall,
+                                  ),
+                                  PrayerTimeCard(
+                                    prayer: PrayerName.maghrib,
+                                    time: prayerTimes.maghrib,
+                                    dateKey: dateKey,
+                                    isHighlighted: activePrayer == PrayerName.maghrib,
+                                    isSunrise: false,
+                                    viewMode: viewMode,
+                                    timeFormat: timeFormat,
+                                    isCompact: isCompact,
+                                    isVerySmall: isVerySmall,
+                                  ),
+                                  PrayerTimeCard(
+                                    prayer: PrayerName.isha,
+                                    time: prayerTimes.isha,
+                                    dateKey: dateKey,
+                                    isHighlighted: activePrayer == PrayerName.isha,
+                                    isSunrise: false,
+                                    viewMode: viewMode,
+                                    timeFormat: timeFormat,
+                                    isCompact: isCompact,
+                                    isVerySmall: isVerySmall,
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ),
-            // 5. Günün Ayeti - below fold, scroll to see (shown on all screen sizes)
-            if (!isBasit) ...[
-              const SizedBox(height: 24),
-              const VerseOfDayCard(),
-            ],
-          ],
+      ],
+    );
+  }
+
+  /// 2-column grid (3 rows) for very small height or large text scale; keeps all 6 prayers visible.
+  Widget _buildPrayerGrid({
+    required String dateKey,
+    required PrayerName? activePrayer,
+    required PrayerTimesEntity prayerTimes,
+    required ViewMode viewMode,
+    required TimeFormat timeFormat,
+  }) {
+    const crossAxisCount = 2;
+    const mainAxisSpacing = 6.0;
+    const crossAxisSpacing = 6.0;
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: crossAxisCount,
+      mainAxisSpacing: mainAxisSpacing,
+      crossAxisSpacing: crossAxisSpacing,
+      childAspectRatio: 2.0,
+      children: [
+        PrayerTimeCard(
+          prayer: PrayerName.fajr,
+          time: prayerTimes.fajr,
+          dateKey: dateKey,
+          isHighlighted: activePrayer == PrayerName.fajr,
+          isSunrise: false,
+          viewMode: viewMode,
+          timeFormat: timeFormat,
+          isCompact: true,
+          isVerySmall: true,
         ),
-      );
+        PrayerTimeCard(
+          prayer: PrayerName.sunrise,
+          time: prayerTimes.sunrise,
+          dateKey: dateKey,
+          isHighlighted: activePrayer == PrayerName.sunrise,
+          isSunrise: true,
+          viewMode: viewMode,
+          timeFormat: timeFormat,
+          isCompact: true,
+          isVerySmall: true,
+        ),
+        PrayerTimeCard(
+          prayer: PrayerName.dhuhr,
+          time: prayerTimes.dhuhr,
+          dateKey: dateKey,
+          isHighlighted: activePrayer == PrayerName.dhuhr,
+          isSunrise: false,
+          viewMode: viewMode,
+          timeFormat: timeFormat,
+          isCompact: true,
+          isVerySmall: true,
+        ),
+        PrayerTimeCard(
+          prayer: PrayerName.asr,
+          time: prayerTimes.asr,
+          dateKey: dateKey,
+          isHighlighted: activePrayer == PrayerName.asr,
+          isSunrise: false,
+          viewMode: viewMode,
+          timeFormat: timeFormat,
+          isCompact: true,
+          isVerySmall: true,
+        ),
+        PrayerTimeCard(
+          prayer: PrayerName.maghrib,
+          time: prayerTimes.maghrib,
+          dateKey: dateKey,
+          isHighlighted: activePrayer == PrayerName.maghrib,
+          isSunrise: false,
+          viewMode: viewMode,
+          timeFormat: timeFormat,
+          isCompact: true,
+          isVerySmall: true,
+        ),
+        PrayerTimeCard(
+          prayer: PrayerName.isha,
+          time: prayerTimes.isha,
+          dateKey: dateKey,
+          isHighlighted: activePrayer == PrayerName.isha,
+          isSunrise: false,
+          viewMode: viewMode,
+          timeFormat: timeFormat,
+          isCompact: true,
+          isVerySmall: true,
+        ),
+      ],
+    );
   }
 
   // Kept for potential reuse (e.g. accessibility); hero uses _countdownPrayerName.
